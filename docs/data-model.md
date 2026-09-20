@@ -28,6 +28,15 @@ Migration `0001_x_first` creates:
 - `graph_edges`
 - `dead_letter_events`
 
+Migration `0002_bertrend` extends topic persistence with:
+
+- stable, unique `topics.topic_key` values;
+- the producing model identifier;
+- idempotent `(topic_id, window_start, window_end)` measurements;
+- growth, velocity, acceleration, and signal status;
+- measurement-level sentiment distributions;
+- the analysis engine/version.
+
 The event repository upserts users and performs deterministic event insertion with a unique `(platform, platform_post_id)` constraint. Chronological queries sort by `created_at`.
 
 Indexes cover platform/source time, author, creation time, collection time, parent lookup, hashtag GIN queries, graph endpoints/time, and trend windows.
@@ -44,4 +53,3 @@ Indexes cover platform/source time, author, creation time, collection time, pare
 - public metrics -> canonical engagement metrics
 
 Useful source identifiers and collection mode are retained in `source_metadata`; credentials and secrets are never stored.
-

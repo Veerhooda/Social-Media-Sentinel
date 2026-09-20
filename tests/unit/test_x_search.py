@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from app.core.config import Settings
@@ -39,6 +40,23 @@ def test_recent_search_follows_pagination_token(x_response_payload) -> None:
     assert "next_token" not in fake.calls[0]
     assert fake.calls[1]["next_token"] == "next-1"
     assert "author_id" in fake.calls[0]["expansions"]
+
+
+def test_recent_search_passes_source_time_bounds(x_response_payload) -> None:
+    fake = FakeSearchClient([response(x_response_payload)])
+    client = XClient(Settings(), client=fake)
+    start = datetime(2026, 9, 20, 15, 0, tzinfo=UTC)
+    end = datetime(2026, 9, 20, 15, 15, tzinfo=UTC)
+
+    XRecentSearch(client).search(
+        "ChatGPT lang:en",
+        max_results=10,
+        start_time=start,
+        end_time=end,
+    )
+
+    assert fake.calls[0]["start_time"] == start
+    assert fake.calls[0]["end_time"] == end
 
 
 def test_recent_search_rejects_invalid_page_size() -> None:

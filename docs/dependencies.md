@@ -30,10 +30,11 @@ M3Inference and other legacy demographic dependencies are intentionally absent f
 
 ## Verification record
 
-- `uv run pytest -q`: **24 passed**, with one upstream Starlette/AnyIO deprecation warning.
+- `uv run pytest -q`: **38 passed**, with one upstream Starlette/AnyIO deprecation warning.
 - `uv run ruff check app scripts tests migrations`: **all checks passed**.
 - `uv run alembic check`: **no new upgrade operations detected**.
 - PostgreSQL migration `0001_x_first`: **applied successfully**.
 - Real replay run: **4 events stored, 4 NLP results produced, 4 relationship records created**; a second run reported all **4 as duplicates**.
 - Required FastAPI checks: **7/7 returned HTTP 200**.
 - Live X verification: **10 Recent Search events plus 4 bounded-stream events stored**, **14 real NLP results**, **15 real interaction edges**, and **10/10 deliberate duplicate reprocesses rejected**.
+- BERTrend 0.4.18 cross-window verification: **44 canonical real-X documents**, **2 populated 15-minute batches**, **13 window topics**, **1 semantic cross-window match**, **12 persisted topics**, and **13 idempotent measurements**.

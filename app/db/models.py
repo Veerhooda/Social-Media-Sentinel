@@ -147,10 +147,13 @@ class GraphEdge(Base):
 
 class Topic(Base):
     __tablename__ = "topics"
+    __table_args__ = (UniqueConstraint("topic_key", name="uq_topic_key"),)
 
     topic_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    topic_key: Mapped[str | None] = mapped_column(String(128))
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     keywords: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, default=list)
+    model_name: Mapped[str | None] = mapped_column(String(256))
     first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -158,16 +161,26 @@ class Topic(Base):
 
 class TrendMeasurement(Base):
     __tablename__ = "trend_measurements"
-    __table_args__ = (Index("ix_trend_time", "window_start", "window_end"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "topic_id", "window_start", "window_end", name="uq_trend_topic_window"
+        ),
+        Index("ix_trend_time", "window_start", "window_end"),
+    )
 
     measurement_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     topic_id: Mapped[int] = mapped_column(ForeignKey("topics.topic_id"), nullable=False)
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     document_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    growth_score: Mapped[float | None] = mapped_column(Float)
     velocity_score: Mapped[float | None] = mapped_column(Float)
     acceleration_score: Mapped[float | None] = mapped_column(Float)
     status: Mapped[str | None] = mapped_column(String(32))
+    sentiment_distribution: Mapped[dict[str, float]] = mapped_column(
+        JSONB, nullable=False, default=dict
+    )
+    analysis_engine: Mapped[str | None] = mapped_column(String(128))
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

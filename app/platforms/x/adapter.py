@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime
 from threading import Event
 
 from app.core.config import Settings, get_settings
@@ -32,12 +33,16 @@ class XAdapter:
         max_results: int | None = None,
         max_pages: int | None = 1,
         since_id: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> XSearchResult:
         return self.search_service.search(
             query if query is not None else self.settings.x_query,
             max_results=max_results or self.settings.x_max_results,
             max_pages=max_pages,
             since_id=since_id,
+            start_time=start_time,
+            end_time=end_time,
         )
 
     def poll_recent(

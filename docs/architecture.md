@@ -25,11 +25,14 @@ The same downstream path accepts clearly labeled canonical replay events. Telegr
 - `app/db`: SQLAlchemy models, PostgreSQL connection, repositories.
 - `app/nlp`: direct Transformers checkpoint loading and stable result contracts.
 - `app/analytics`: source-time temporal aggregation and lightweight hashtag trends.
+- `app/trends`: platform-independent micro-batching, BERTrend adaptation, topic persistence, and evolution queries.
 - `app/graph`: event relationship extraction and NetworkX algorithms.
 - `app/pipeline`: shared live/replay orchestration.
 - `app/api`: typed FastAPI responses.
 
 No platform response object passes beyond the X mapper. No frontend talks directly to X.
+
+BERTrend reads canonical text and source timestamps from PostgreSQL. It has no dependency on Tweepy or the X adapter, so future canonical Telegram, YouTube, Meta, or Reddit events can use the same service.
 
 ## Honest operating modes
 

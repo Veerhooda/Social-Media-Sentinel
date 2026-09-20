@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 
 from fastapi.testclient import TestClient
 
@@ -18,6 +19,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Bounded, privacy-conscious live X verification")
     parser.add_argument("--query", default=None)
     parser.add_argument("--max-results", type=int, default=10)
+    parser.add_argument("--start-time", type=datetime.fromisoformat, default=None)
+    parser.add_argument("--end-time", type=datetime.fromisoformat, default=None)
     args = parser.parse_args()
 
     try:
@@ -25,6 +28,8 @@ def main() -> int:
             args.query,
             max_results=args.max_results,
             max_pages=1,
+            start_time=args.start_time,
+            end_time=args.end_time,
         )
     except (XAPIError, XAuthenticationError) as exc:
         print(json.dumps({"status": "FAIL", "error": str(exc).replace("\n", " | ")}))

@@ -12,7 +12,10 @@
 - Irony is not identical to sarcasm in every context.
 - Fixed-target stance is not arbitrary-target stance. General-target stance remains explicitly unsupported.
 - Temporal analytics support rolling one-hour windows with 15-minute steps and daily summaries.
-- `/api/analytics/trends` currently reports hashtag frequency. BERTrend 0.4.18 imports on Python 3.13 but is not yet connected to the event pipeline; the API labels this fact.
+- BERTrend topic discovery and one real cross-window cooling classification are verified. Only one topic matched across the two windows; the other 11 persisted topics still have insufficient temporal evidence.
+- Cross-window identity uses one-to-one Sentence Transformer centroid similarity at a configurable `0.70` threshold, with keyword overlap only as a persistence fallback. This threshold needs evaluation on a larger chronological corpus.
+- Acceleration remains unavailable for the real matched topic because it has only two measurements; three are required.
+- The embedding model is downloaded to the user's model cache, not committed to Git. First-run model download and CPU inference can be comparatively slow.
 - NetworkX is in-memory and intended for bounded/rolling graph windows.
 - No follower graph or causal influence is claimed.
 

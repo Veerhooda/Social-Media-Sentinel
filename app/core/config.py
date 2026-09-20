@@ -32,10 +32,15 @@ class Settings(BaseSettings):
     nlp_model_download_enabled: bool = False
     graph_interval_seconds: int = Field(default=300, ge=1)
     trend_interval_seconds: int = Field(default=900, ge=1)
+    trend_window_minutes: int = Field(default=15, ge=1, le=1440)
+    trend_min_documents: int = Field(default=10, ge=2)
+    trend_embedding_model: str = "all-MiniLM-L12-v2"
+    trend_model_download_enabled: bool = False
+    trend_topic_similarity_threshold: float = Field(default=0.4, ge=0, le=1)
+    trend_topic_centroid_similarity_threshold: float = Field(default=0.7, ge=0, le=1)
     sentiment_window_minutes: int = Field(default=60, ge=1)
 
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

@@ -4,9 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.analytics.schemas import TemporalPoint, TrendItem
+from app.analytics.schemas import TemporalPoint
 from app.graph.schemas import NetworkSummary
 from app.models.events import CanonicalEvent
+from app.trends.schemas import TrendAnalyticsResponse
 
 
 class ComponentHealth(BaseModel):
@@ -37,10 +38,16 @@ class TemporalSeriesResponse(BaseModel):
     daily: list[TemporalPoint]
 
 
-class TrendResponse(BaseModel):
-    engine: str
-    items: list[TrendItem]
-
-
 class NetworkResponse(BaseModel):
     summary: NetworkSummary
+
+
+__all__ = [
+    "ComponentHealth",
+    "EventListResponse",
+    "HealthResponse",
+    "LiveEventsResponse",
+    "NetworkResponse",
+    "TemporalSeriesResponse",
+    "TrendAnalyticsResponse",
+]

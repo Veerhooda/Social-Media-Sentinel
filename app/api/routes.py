@@ -16,13 +16,21 @@ from app.api.schemas import (
     LiveEventsResponse,
     NetworkResponse,
     TemporalSeriesResponse,
-    TrendResponse,
+    TrendAnalyticsResponse,
 )
 from app.db.repositories.social import SocialRepository
 from app.graph.builder import GraphBuilder
 from app.graph.metrics import calculate_network_metrics
 from app.models.events import CanonicalEvent
 from app.platforms.x.adapter import XAdapter
+from app.trends.repository import TrendRepository
+from app.trends.schemas import (
+    AnalysisStatus,
+    TopicDetail,
+    TopicEvolutionResponse,
+    TopicListResponse,
+    TopicSummary,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -109,12 +117,91 @@ def emotions(repository: SocialRepository = Depends(get_repository)) -> Temporal
     return _temporal_response(repository)
 
 
-@router.get("/analytics/trends", response_model=TrendResponse)
-def trends(repository: SocialRepository = Depends(get_repository)) -> TrendResponse:
+@router.get("/analytics/trends", response_model=TrendAnalyticsResponse)
+def trends(
+    repository: SocialRepository = Depends(get_repository),
+) -> TrendAnalyticsResponse:
+    trend_repository = TrendRepository(repository.session)
+    persisted = trend_repository.list_topics()
+    if persisted:
+        temporal_status = (
+            AnalysisStatus.PASS
+            if any(item.velocity is not None for item in persisted)
+            else AnalysisStatus.INSUFFICIENT_DATA
+        )
+        return TrendAnalyticsResponse(
+            status=AnalysisStatus.PASS,
+            temporal_status=temporal_status,
+            engine=persisted[0].source,
+            fallback=False,
+            items=persisted,
+            detail=(
+                None
+                if temporal_status is AnalysisStatus.PASS
+                else "Topics exist, but fewer than two comparable measurements are available"
+            ),
+        )
+
     events = repository.list_events(limit=1000)
-    return TrendResponse(
-        engine="hashtag_frequency (BERTrend dependency verified separately; service integration is a later phase)",
-        items=hashtag_trends(events),
+    fallback_items = hashtag_trends(events)
+    return TrendAnalyticsResponse(
+        status=AnalysisStatus.SKIPPED,
+        temporal_status=AnalysisStatus.INSUFFICIENT_DATA,
+        engine="hashtag_frequency",
+        fallback=True,
+        items=[
+            TopicSummary(
+                topic=item.topic,
+                volume=item.volume,
+                status="fallback",
+                source=item.source,
+            )
+            for item in fallback_items
+        ],
+        detail="No persisted BERTrend measurements; returning the explicit frequency fallback",
+    )
+
+
+@router.get("/analytics/topics", response_model=TopicListResponse)
+def topics(repository: SocialRepository = Depends(get_repository)) -> TopicListResponse:
+    items = TrendRepository(repository.session).list_topics()
+    return TopicListResponse(
+        status=AnalysisStatus.PASS if items else AnalysisStatus.INSUFFICIENT_DATA,
+        engine=items[0].source if items else "BERTrend",
+        items=items,
+        detail=None if items else "No persisted BERTrend topics",
+    )
+
+
+@router.get("/analytics/topics/{topic_id}", response_model=TopicDetail)
+def topic_detail(
+    topic_id: int, repository: SocialRepository = Depends(get_repository)
+) -> TopicDetail:
+    topic = TrendRepository(repository.session).get_topic(topic_id)
+    if topic is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    return topic
+
+
+@router.get(
+    "/analytics/topics/{topic_id}/evolution", response_model=TopicEvolutionResponse
+)
+def topic_evolution(
+    topic_id: int, repository: SocialRepository = Depends(get_repository)
+) -> TopicEvolutionResponse:
+    trend_repository = TrendRepository(repository.session)
+    topic = trend_repository.get_topic(topic_id)
+    if topic is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    items = topic.evolution
+    return TopicEvolutionResponse(
+        status=(
+            AnalysisStatus.PASS if len(items) >= 2 else AnalysisStatus.INSUFFICIENT_DATA
+        ),
+        topic_id=topic_id,
+        topic=topic.topic,
+        items=items,
+        detail=None if len(items) >= 2 else "At least two measurements are required for evolution",
     )
 
 

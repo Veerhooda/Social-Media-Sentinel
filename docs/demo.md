@@ -19,3 +19,10 @@ Inspect:
 - `/api/analytics/trends`
 - `/api/network/summary`
 
+For real stored canonical events, run BERTrend separately:
+
+```bash
+uv run python scripts/run_trends.py --platform x --allow-model-download
+```
+
+Then inspect `/api/analytics/topics` and a returned topic's detail/evolution endpoints.
