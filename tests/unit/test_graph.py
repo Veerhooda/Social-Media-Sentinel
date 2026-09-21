@@ -43,3 +43,27 @@ def test_calculates_required_network_metrics() -> None:
     assert summary.communities == 1
     assert {metric.node_id for metric in summary.metrics} == {"x:source", "x:target"}
 
+
+def test_telegram_reply_and_forward_use_existing_graph_semantics() -> None:
+    event = CanonicalEvent(
+        platform="telegram",
+        platform_post_id="-100777:10",
+        parent_platform_post_id="-100777:9",
+        interaction_type="reply",
+        created_at=datetime(2026, 9, 20, 10, 0, tzinfo=UTC),
+        collected_at=datetime(2026, 9, 20, 10, 0, 1, tzinfo=UTC),
+        author=AuthorInfo(platform_user_id="reply-author"),
+        content=ContentInfo(text="Forward in a reply"),
+        relationships=RelationshipInfo(
+            parent_author_id="parent-author",
+            forwarded_from_id="source-channel",
+        ),
+    )
+
+    edges = GraphBuilder().edges_from_event(event)
+    by_type = {edge.interaction_type: edge for edge in edges}
+
+    assert by_type["reply"].target_platform_user_id == "parent-author"
+    assert by_type["reply"].weight == 0.8
+    assert by_type["forward"].target_platform_user_id == "source-channel"
+    assert by_type["forward"].weight == 1.0

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,8 +17,13 @@ class Settings(BaseSettings):
     app_env: str = "development"
     api_host: str = "127.0.0.1"
     api_port: int = 8000
+    frontend_origin: str = "http://localhost:5173"
 
     database_url: str = "postgresql+psycopg://localhost/social_analytics"
+
+    telegram_api_id: int | None = None
+    telegram_api_hash: str | None = None
+    telegram_session_string: str | None = None
 
     x_bearer_token: str | None = None
     x_client_id: str | None = None
@@ -27,9 +32,11 @@ class Settings(BaseSettings):
     x_max_results: int = Field(default=100, ge=10, le=100)
     x_stream_enabled: bool = False
     x_search_interval_seconds: int = Field(default=60, ge=10)
+    x_max_pages_per_run: int = Field(default=1, ge=1, le=100)
 
     nlp_batch_size: int = Field(default=16, ge=1, le=128)
     nlp_model_download_enabled: bool = False
+    nlp_processing_interval_seconds: int = Field(default=30, ge=1)
     graph_interval_seconds: int = Field(default=300, ge=1)
     trend_interval_seconds: int = Field(default=900, ge=1)
     trend_window_minutes: int = Field(default=15, ge=1, le=1440)
@@ -39,6 +46,16 @@ class Settings(BaseSettings):
     trend_topic_similarity_threshold: float = Field(default=0.4, ge=0, le=1)
     trend_topic_centroid_similarity_threshold: float = Field(default=0.7, ge=0, le=1)
     sentiment_window_minutes: int = Field(default=60, ge=1)
+
+    scheduler_enabled: bool = False
+    scheduler_tick_seconds: float = Field(default=1.0, gt=0, le=60)
+    analytics_job_batch_size: int = Field(default=100, ge=1, le=10_000)
+    analytics_include_replay: bool = False
+
+    @field_validator("telegram_api_id", mode="before")
+    @classmethod
+    def empty_telegram_api_id_is_unconfigured(cls, value):
+        return None if value == "" else value
 
 
 @lru_cache

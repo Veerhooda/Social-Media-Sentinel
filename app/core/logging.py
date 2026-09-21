@@ -15,6 +15,9 @@ class JsonFormatter(logging.Formatter):
             "event_id": getattr(record, "event_id", None),
             "operation": getattr(record, "operation", None),
             "duration_ms": getattr(record, "duration_ms", None),
+            "processed_count": getattr(record, "processed_count", None),
+            "started_at": getattr(record, "started_at", None),
+            "finished_at": getattr(record, "finished_at", None),
             "status": getattr(record, "status", record.levelname),
             "error": getattr(record, "error", None),
             "message": record.getMessage(),
@@ -29,4 +32,3 @@ def configure_logging(level: int = logging.INFO) -> None:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level)
-

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import UTC, datetime
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -51,6 +52,8 @@ class EventPipeline:
         self.repository.upsert_nlp_result(write.event_id, result)
         edges = self.graph_builder.edges_from_event(event)
         edge_count = self.repository.insert_graph_edges(edges)
+        self.repository.mark_graph_processed(write.event_id, datetime.now(UTC))
+        self.repository.commit()
         logger.info(
             "Canonical event completed the analytics pipeline",
             extra={
@@ -70,4 +73,3 @@ class EventPipeline:
             graph_edges_created=edge_count,
             nlp=result,
         )
-

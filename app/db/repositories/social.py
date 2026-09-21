@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Select, func, select, text
+from sqlalchemy import Select, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -112,6 +112,7 @@ class SocialRepository:
         start: datetime | None = None,
         end: datetime | None = None,
         newest_first: bool = False,
+        offset: int = 0,
     ) -> list[CanonicalEvent]:
         query = self._event_query()
         if platform:
@@ -121,11 +122,105 @@ class SocialRepository:
         if end:
             query = query.where(SocialEvent.created_at < end)
         ordering = SocialEvent.created_at.desc() if newest_first else SocialEvent.created_at.asc()
-        rows = self.session.execute(query.order_by(ordering).limit(limit)).all()
+        rows = self.session.execute(
+            query.order_by(ordering).offset(offset).limit(limit)
+        ).all()
         return [self._to_event(row) for row in rows]
 
-    def count_events(self) -> int:
-        return self.session.execute(select(func.count()).select_from(SocialEvent)).scalar_one()
+    def list_enriched_events(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        platform: str | None = None,
+        newest_first: bool = True,
+    ) -> list[tuple[CanonicalEvent, NLPResult | None]]:
+        query = self._event_query().outerjoin(
+            NLPAnalysis, NLPAnalysis.event_id == SocialEvent.event_id
+        ).add_columns(NLPAnalysis)
+        if platform:
+            query = query.where(SocialEvent.platform == platform)
+        ordering = SocialEvent.created_at.desc() if newest_first else SocialEvent.created_at.asc()
+        rows = self.session.execute(
+            query.order_by(ordering).offset(offset).limit(limit)
+        ).all()
+        return [
+            (
+                self._to_event(row[:2]),
+                NLPResult.from_orm_record(row[2]) if row[2] is not None else None,
+            )
+            for row in rows
+        ]
+
+    def count_events(self, *, platform: str | None = None) -> int:
+        query = select(func.count()).select_from(SocialEvent)
+        if platform:
+            query = query.where(SocialEvent.platform == platform)
+        return self.session.execute(query).scalar_one()
+
+    def count_events_by_replay(self, *, replay: bool) -> int:
+        replay_value = SocialEvent.source_metadata["replay"].as_boolean()
+        return self.session.scalar(
+            select(func.count())
+            .select_from(SocialEvent)
+            .where(func.coalesce(replay_value, False).is_(replay))
+        ) or 0
+
+    def platform_event_summaries(self) -> list[dict]:
+        replay_value = SocialEvent.source_metadata["replay"].as_boolean()
+        rows = self.session.execute(
+            select(
+                SocialEvent.platform,
+                func.count().label("event_count"),
+                func.count().filter(func.coalesce(replay_value, False).is_(False)).label(
+                    "real_event_count"
+                ),
+                func.count().filter(func.coalesce(replay_value, False).is_(True)).label(
+                    "replay_event_count"
+                ),
+                func.max(SocialEvent.created_at).label("latest_created_at"),
+                func.max(SocialEvent.collected_at).label("latest_collected_at"),
+            )
+            .group_by(SocialEvent.platform)
+            .order_by(SocialEvent.platform)
+        ).all()
+        return [dict(row._mapping) for row in rows]
+
+    def list_events_without_nlp(self, *, limit: int = 100) -> list[CanonicalEvent]:
+        query = (
+            self._event_query()
+            .outerjoin(NLPAnalysis, NLPAnalysis.event_id == SocialEvent.event_id)
+            .where(NLPAnalysis.event_id.is_(None))
+            .order_by(SocialEvent.created_at.asc())
+            .limit(limit)
+        )
+        return [self._to_event(row) for row in self.session.execute(query).all()]
+
+    def list_events_without_graph(self, *, limit: int = 100) -> list[CanonicalEvent]:
+        query = (
+            self._event_query()
+            .where(SocialEvent.graph_processed_at.is_(None))
+            .order_by(SocialEvent.created_at.asc())
+            .limit(limit)
+        )
+        return [self._to_event(row) for row in self.session.execute(query).all()]
+
+    def mark_graph_processed(self, event_id: UUID, processed_at: datetime) -> None:
+        self.session.execute(
+            update(SocialEvent)
+            .where(SocialEvent.event_id == event_id)
+            .values(graph_processed_at=processed_at)
+        )
+
+    def latest_collected_at(self, *, include_replay: bool = False) -> datetime | None:
+        query = select(func.max(SocialEvent.collected_at))
+        if not include_replay:
+            replay_value = SocialEvent.source_metadata["replay"].as_boolean()
+            query = query.where(func.coalesce(replay_value, False).is_(False))
+        return self.session.scalar(query)
+
+    def commit(self) -> None:
+        self.session.commit()
 
     def record_dead_letter(
         self,
@@ -155,7 +250,11 @@ class SocialRepository:
         self.session.commit()
 
     def list_nlp_results(
-        self, *, start: datetime | None = None, end: datetime | None = None
+        self,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        platform: str | None = None,
     ) -> list[tuple[CanonicalEvent, NLPResult]]:
         query = self._event_query().join(NLPAnalysis, NLPAnalysis.event_id == SocialEvent.event_id)
         query = query.add_columns(NLPAnalysis)
@@ -163,6 +262,8 @@ class SocialRepository:
             query = query.where(SocialEvent.created_at >= start)
         if end:
             query = query.where(SocialEvent.created_at < end)
+        if platform:
+            query = query.where(SocialEvent.platform == platform)
         rows = self.session.execute(query.order_by(SocialEvent.created_at.asc())).all()
         output: list[tuple[CanonicalEvent, NLPResult]] = []
         for row in rows:
@@ -184,14 +285,57 @@ class SocialRepository:
         return inserted
 
     def list_graph_edges(
-        self, *, start: datetime | None = None, end: datetime | None = None
+        self,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        include_replay: bool = True,
+        platform: str | None = None,
+        limit: int | None = None,
+        newest_first: bool = False,
     ) -> list[EdgeRecord]:
-        query = select(GraphEdge)
+        query = select(GraphEdge).join(SocialEvent, SocialEvent.event_id == GraphEdge.event_id)
+        if not include_replay:
+            replay_value = SocialEvent.source_metadata["replay"].as_boolean()
+            query = query.where(func.coalesce(replay_value, False).is_(False))
+        if platform:
+            query = query.where(GraphEdge.platform == platform)
         if start:
             query = query.where(GraphEdge.occurred_at >= start)
         if end:
             query = query.where(GraphEdge.occurred_at < end)
+        ordering = GraphEdge.occurred_at.desc() if newest_first else GraphEdge.occurred_at.asc()
+        query = query.order_by(ordering)
+        if limit is not None:
+            query = query.limit(limit)
         return [EdgeRecord.model_validate(row) for row in self.session.scalars(query).all()]
+
+    def list_cascade_records(
+        self,
+        *,
+        platform: str | None = None,
+        limit: int = 10_000,
+    ) -> list[tuple[SocialEvent, str]]:
+        """Stored events with parent/thread references plus author labels."""
+        query = (
+            select(SocialEvent, SocialUser.platform_user_id)
+            .join(SocialUser, SocialUser.user_id == SocialEvent.author_id)
+            .where(SocialEvent.thread_root_id.isnot(None))
+        )
+        if platform:
+            query = query.where(SocialEvent.platform == platform)
+        rows = self.session.execute(
+            query.order_by(SocialEvent.created_at.asc()).limit(limit)
+        ).all()
+        return [(row[0], f"{row[0].platform}:{row[1]}") for row in rows]
+
+    def nlp_map_for_events(self, event_ids: list[UUID]) -> dict[UUID, NLPAnalysis]:
+        if not event_ids:
+            return {}
+        rows = self.session.scalars(
+            select(NLPAnalysis).where(NLPAnalysis.event_id.in_(event_ids))
+        ).all()
+        return {row.event_id: row for row in rows}
 
     @staticmethod
     def _event_query() -> Select:

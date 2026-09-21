@@ -1,4 +1,60 @@
-# X API Access
+# Platform API Access
+
+## Telegram / Telethon
+
+Telegram is isolated under `app/platforms/telegram` and uses Telethon 1.45.0 with an
+in-memory `StringSession`. The adapter exposes:
+
+- `TelegramAdapter.historical(...)` for bounded public-channel/supergroup history;
+- `TelegramAdapter.stream(...)` for new-message events with bounded reconnects and
+  graceful shutdown;
+- `TelegramAdapter.health_check(...)` for configuration or an explicitly requested
+  live authorization check.
+
+Configuration is loaded only from environment settings:
+
+```dotenv
+TELEGRAM_API_ID=
+TELEGRAM_API_HASH=
+TELEGRAM_SESSION_STRING=
+```
+
+Obtain the API ID/hash from Telegram and create the authorized session outside this
+repository. Do not paste credentials into chat, print a session string, or commit a
+`.session`/`.session-journal` file.
+
+History accepts a channel, a `1..1000` message bound, optional timezone-aware
+start/end times, and a channel-scoped last-message checkpoint. Live collection
+requires an explicit channel list and uses Telethon's `NewMessage` handler. Targets
+must resolve to a public broadcast channel or public supergroup with a username;
+private user dialogs are rejected.
+
+`FloodWaitError` waits for Telegram's server-specified duration before a bounded
+retry. Transport/server failures use bounded exponential backoff. Telethon-specific
+objects stop at the mapper boundary. Repository uniqueness on
+`(platform, platform_post_id)` remains the final duplicate-delivery guard.
+
+Local deterministic mapper/history/stream tests: PASS. On 2026-09-21 an authorized
+session completed a bounded pull from Telegram's official public channel: 3 messages
+were fetched, normalized, stored, and analyzed. A single 15-second `NewMessage`
+listener connected and stopped cleanly but received no arriving update; therefore
+live-arrival verification remains **SKIPPED**, not reported as success.
+
+Useful bounded commands (they print `SKIPPED` when credentials are absent):
+
+```bash
+uv run python scripts/run_telegram_history.py public_channel --max-messages 20
+uv run python scripts/run_telegram_stream.py --channel public_channel --duration-seconds 30
+```
+
+References:
+
+- <https://docs.telethon.dev/en/stable/basic/signing-in.html>
+- <https://docs.telethon.dev/en/stable/modules/client.html#telethon.client.messages.MessageMethods.iter_messages>
+- <https://docs.telethon.dev/en/stable/modules/events.html#telethon.events.newmessage.NewMessage>
+- <https://core.telegram.org/api/obtaining_api_id>
+
+## X / Tweepy
 
 ## Implemented interfaces
 
@@ -56,3 +112,18 @@ Missing credentials never produce fake events or fake success.
 - <https://docs.tweepy.org/en/stable/streamingclient.html#tweepy.StreamingClient.filter>
 
 API product access and limits depend on the actual X developer account and current X policy; the application does not encode a pricing tier.
+
+## Dashboard contracts
+
+The React client additionally consumes:
+
+- `GET /api/health` — component health plus per-platform real/replay counts and
+  latest source/collection timestamps;
+- `GET /api/events/enriched` — paginated canonical events with optional persisted NLP;
+- `GET /api/network/graph` — real, non-replay interaction nodes and edges;
+- `GET /api/system/jobs` — scheduler/job observability;
+- existing health, temporal, trend, topic, and summary endpoints.
+
+Event endpoints support bounded pagination. Dashboard network endpoints exclude replay edges by default.
+`/api/events`, `/api/events/live`, temporal analytics, and network endpoints accept
+the same canonical platform values, including `telegram`.

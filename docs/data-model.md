@@ -22,7 +22,7 @@ Migration `0001_x_first` creates:
 - `social_users`
 - `social_events`
 - `nlp_analysis`
-- `user_demographics` (schema foundation only)
+- `user_demographics` (aggregate signals with provenance: language/geography confidence, inference source, model versions, updated_at; age brackets persist NULL by design until a validated model exists)
 - `topics`
 - `trend_measurements`
 - `graph_edges`
@@ -36,6 +36,11 @@ Migration `0002_bertrend` extends topic persistence with:
 - growth, velocity, acceleration, and signal status;
 - measurement-level sentiment distributions;
 - the analysis engine/version.
+
+Migration `0003_scheduler` adds:
+
+- `social_events.graph_processed_at` for incremental graph processing;
+- `analytics_checkpoints` for X collection cursors and trend watermarks.
 
 The event repository upserts users and performs deterministic event insertion with a unique `(platform, platform_post_id)` constraint. Chronological queries sort by `created_at`.
 
@@ -53,3 +58,25 @@ Indexes cover platform/source time, author, creation time, collection time, pare
 - public metrics -> canonical engagement metrics
 
 Useful source identifiers and collection mode are retained in `source_metadata`; credentials and secrets are never stored.
+
+## Telegram mapping
+
+Telegram message IDs are unique only within a channel. The canonical
+`platform_post_id` is therefore `<channel_id>:<message_id>`; the original channel
+and message identifiers are also retained separately in `source_metadata`.
+
+- Telegram `date` -> canonical `created_at`
+- mapper observation time -> independent `collected_at`
+- channel-scoped reply ID -> `parent_platform_post_id`
+- discussion/reply top ID -> `thread_root_id`
+- sender/channel entity -> canonical author
+- text hashtags and `@username` mentions -> canonical content
+- resolvable mention entity IDs -> `source_metadata.mention_ids`
+- reply sender -> `relationships.parent_author_id`
+- resolvable forward peer -> `relationships.forwarded_from_id`
+- photos/documents -> metadata-only canonical media records (no private download URL)
+- reactions/forwards/replies/views -> available canonical engagement counters
+
+Hidden forward names are retained as source metadata but do not produce an invented
+graph identity. The existing unique `(platform, platform_post_id)` constraint,
+repositories, indexes, and graph tables require no Telegram-specific migration.

@@ -60,6 +60,7 @@ def main() -> int:
         ("FastAPI", "fastapi"),
         ("Uvicorn", "uvicorn"),
         ("Tweepy", "tweepy"),
+        ("Telethon", "telethon"),
         ("Transformers", "transformers"),
         ("PyTorch", "torch"),
         ("NetworkX", "networkx"),
@@ -77,6 +78,26 @@ def main() -> int:
     else:
         report("SKIPPED", "X credentials", "X_BEARER_TOKEN is not configured")
 
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    if (
+        settings.telegram_api_id
+        and settings.telegram_api_hash
+        and settings.telegram_session_string
+    ):
+        report(
+            "PASS",
+            "Telegram credentials",
+            "MTProto settings configured; no live request made",
+        )
+    else:
+        report(
+            "SKIPPED",
+            "Telegram credentials",
+            "Telegram MTProto settings are not fully configured",
+        )
+
     report(
         "SKIPPED",
         "Transformer weights",
@@ -87,4 +108,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -56,6 +56,7 @@ class SocialEvent(Base):
         Index("ix_events_collected_at", desc("collected_at")),
         Index("ix_events_parent_platform_post", "platform", "parent_platform_post_id"),
         Index("ix_events_hashtags_gin", "hashtags", postgresql_using="gin"),
+        Index("ix_events_graph_pending", "graph_processed_at"),
     )
 
     event_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -75,6 +76,7 @@ class SocialEvent(Base):
     relationships: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     source_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    graph_processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class NLPAnalysis(Base):
@@ -103,7 +105,12 @@ class NLPAnalysis(Base):
 
 class UserDemographic(Base):
     __tablename__ = "user_demographics"
-    __table_args__ = (UniqueConstraint("user_id", name="uq_demographics_user"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_demographics_user"),
+        Index("ix_demographics_language", "primary_language"),
+        Index("ix_demographics_sector", "professional_sector"),
+        Index("ix_demographics_country", "inferred_country"),
+    )
 
     demographic_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
@@ -118,7 +125,14 @@ class UserDemographic(Base):
     profession_confidence: Mapped[float | None] = mapped_column(Float)
     gender: Mapped[str | None] = mapped_column(String(32))
     gender_confidence: Mapped[float | None] = mapped_column(Float)
+    language_confidence: Mapped[float | None] = mapped_column(Float)
+    geography_confidence: Mapped[float | None] = mapped_column(Float)
+    inference_source: Mapped[str | None] = mapped_column(String(64))
+    model_versions: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False, default=dict)
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class GraphEdge(Base):
@@ -193,3 +207,14 @@ class DeadLetterEvent(Base):
     error_message: Mapped[str] = mapped_column(Text, nullable=False)
     raw_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AnalyticsCheckpoint(Base):
+    __tablename__ = "analytics_checkpoints"
+
+    job_name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    cursor_value: Mapped[str | None] = mapped_column(String(256))
+    last_event_collected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
