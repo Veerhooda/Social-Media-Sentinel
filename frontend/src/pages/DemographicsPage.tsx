@@ -43,7 +43,14 @@ function DimensionPanel({ dimension }: { dimension: DimensionDistribution }) {
       className="span-6"
     >
       {dimension.status === 'UNAVAILABLE' || dimension.status === 'ERROR' ? (
-        <EmptyState title={dimension.status === 'UNAVAILABLE' ? 'Dimension unavailable' : 'Dimension error'} detail={dimension.detail} />
+        <EmptyState
+          title={dimension.dimension === 'age' ? 'Age estimates unavailable' : 'Dimension unavailable'}
+          detail={
+            dimension.dimension === 'age'
+              ? 'The current corpus does not contain sufficient validated age evidence.'
+              : dimension.detail
+          }
+        />
       ) : known.length === 0 ? (
         <EmptyState title="Insufficient data" detail={dimension.detail || 'No classifiable evidence for this dimension yet.'} />
       ) : (

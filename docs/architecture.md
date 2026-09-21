@@ -82,3 +82,57 @@ page.
 - **Replay:** uses synthetic canonical events with `source_metadata.replay=true`.
 - **Mixed:** the selected response contains more than one real/replay source mode.
 - **Idle:** API is available but no stream is active.
+
+## System diagrams
+
+High-level architecture (only components that exist):
+
+```text
+X ───────────┐
+Telegram ────┤
+             ▼
+      Platform Adapters
+             ▼
+       Canonical Events
+             ▼
+         PostgreSQL
+             ▼
+ ┌───────────┼────────────┐
+ ▼           ▼            ▼
+ NLP      BERTrend       Graph
+ │           │            │
+ │      Topic Evolution   │
+ │                        │
+ └───────────┼────────────┘
+             ▼
+        FastAPI API
+             ▼
+        React Dashboard
+```
+
+Data flow:
+
+```text
+Collection
+→ normalization
+→ persistence
+→ NLP
+→ trends
+→ graph
+→ aggregation
+→ API
+→ UI
+```
+
+Continuous analytics (single scheduler-owning process, opt-in only):
+
+```text
+X
+→ scheduler
+→ processing
+→ updated analytics
+→ dashboard
+```
+
+Replay fixtures enter through the same canonical-event boundary and are
+labeled `replay` end to end. No Kafka, Redis, Celery, or Kubernetes is used.

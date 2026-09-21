@@ -1,101 +1,165 @@
 # Social Sentinel
 
-Social Sentinel is a canonical multi-platform social-media analytics framework. X
-is the first verified real platform; Telegram is the second integrated adapter.
-Both use the same downstream slice:
+AI-driven social-media analytics over a unified, timestamped event timeline.
+Collects public X and Telegram activity into canonical PostgreSQL events, then
+derives sentiment, emotion, irony, supported stance, BERTrend topics, network
+topology, and aggregate demographics behind a FastAPI + React dashboard.
+
+## Problem-statement coverage
+
+The framework addresses five components:
+
+A. Continuous collection and timeline — X Recent Search / Filtered Stream and
+Telegram public history / live listener, normalized into one chronological store.
+B. Multi-dimensional sentiment — positive/neutral/negative, fine-grained
+emotion (GoEmotions, with `nervousness` mapped to the product term anxiety),
+irony, and fixed-target stance, all with confidence and temporal aggregation.
+C. Demographic profiling — aggregate geography, language, and professional
+interests with unknown handling. Age is deliberately UNAVAILABLE (see below).
+D. Trend and topic detection — BERTrend discovery, velocity, cross-window
+evolution, and honest insufficient-data states.
+E. Link analysis — interaction graph with degree, betweenness, closeness,
+PageRank, HITS, Louvain communities, temporal snapshots, observed cascades,
+and propagation paths. Structural metrics only; no causal claims, no follower
+graph.
+
+## What is implemented
+
+X ingestion, Telegram ingestion, canonical events, PostgreSQL timeline,
+sentiment, emotion, irony, supported stance, temporal analytics, BERTrend,
+continuous scheduler jobs, NetworkX analysis, communities, observed cascades,
+aggregate demographics, FastAPI, React dashboard, replay mode, health/job status.
+
+## Deliberately unavailable
+
+- Age inference: the corpus carries no validated age evidence, so the API and
+dashboard report UNAVAILABLE instead of fabricated brackets.
+- Arbitrary-target stance: fixed-target models are never misused as general
+stance engines.
+- YouTube and Reddit: COMING SOON. Meta/Instagram/Facebook: PLANNED, inactive.
+- Per-event topic labels, follower graphs, diffusion simulation: not present.
+
+## Architecture
 
 ```text
-X recent search / filtered stream, Telegram public history/live, or labeled replay
-  -> canonical Pydantic event
-  -> PostgreSQL
-  -> sentiment, emotion, irony, supported stance
-  -> temporal aggregation
-  -> interaction graph and NetworkX metrics
-  -> FastAPI
+X ───────────┐
+Telegram ────┤
+             ▼
+      Platform Adapters
+             ▼
+       Canonical Events
+             ▼
+         PostgreSQL
+             ▼
+ ┌───────────┼────────────┐
+ ▼           ▼            ▼
+ NLP      BERTrend       Graph
+ │           │            │
+ │      Topic Evolution   │
+ │                        │
+ └───────────┼────────────┘
+             ▼
+        FastAPI API
+             ▼
+        React Dashboard
 ```
 
-## Local setup
+Data flow: collection → normalization → persistence → NLP → trends →
+graph → aggregation → API → UI. Analytics modules sit behind
+application-level interfaces; SQL stays in repositories; platform objects
+never leak past adapters. Full detail: `docs/architecture.md`. Requirement
+mapping: `docs/ps-coverage.md`.
 
-Requirements: Python 3.13 and PostgreSQL 16+.
+## Stack
+
+Python 3.13, Pydantic, PostgreSQL 16, FastAPI, Uvicorn, React + Vite,
+NetworkX, Transformers/PyTorch (CardiffNLP sentiment/irony, GoEmotions),
+BERTrend/BERTopic, Tweepy (X), Telethon (Telegram), Alembic, Vitest.
+
+## Install
 
 ```bash
 uv sync --extra dev --extra trend
 cp .env.example .env
+cd frontend && npm install && cd ..
+```
+
+## Configure
+
+`.env` holds placeholders only and is never committed. Live X collection needs
+`X_BEARER_TOKEN`; live Telegram needs `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`,
+and an authorized `TELEGRAM_SESSION_STRING`. With credentials absent, live
+commands report SKIPPED. The standard demo needs no credentials at all.
+
+## Start PostgreSQL
+
+Use a local PostgreSQL 16+ instance and point `DATABASE_URL` at it, e.g.
+`postgresql+psycopg://social_analytics:change-me@localhost:5432/social_analytics`.
+
+## Run migrations
+
+```bash
 uv run alembic upgrade head
-uv run python scripts/smoke_test.py
-uv run pytest
-uv run uvicorn app.main:app --reload
 ```
 
-After canonical events are stored, run the isolated trend service with:
+Schema-only; stored data is untouched. `uv run alembic check` must report no drift.
+
+## Start the backend
 
 ```bash
-uv run python scripts/run_trends.py --platform x --allow-model-download
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-The first run downloads the configured Sentence Transformer model. Later runs use the local model cache. Topic discovery and temporal evolution status are reported separately so a single populated window is never described as a rising trend.
+Health: `http://127.0.0.1:8000/api/health`. The scheduler is off unless
+`SCHEDULER_ENABLED=true`, and exactly one process may own it.
 
-## Telegram
-
-Configure `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and an authorized
-`TELEGRAM_SESSION_STRING` in `.env`. Never commit the session. Bounded public-channel
-history and a short controlled live run are available with:
+## Start the frontend
 
 ```bash
+cd frontend && npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+Open `http://127.0.0.1:5173`. Verify with `npm run build`, `npm test`, `npm run lint`.
+
+## Local demo
+
+One command, read-only, no credentials, no downloads, no collection:
+
+```bash
+./scripts/demo.sh
+```
+
+It validates the environment (`scripts/demo_check.py`: database, schema,
+stored rows, migrations, backend import, frontend build), applies migrations,
+starts FastAPI with the scheduler disabled, and starts Vite. Follow the judge
+runbook in `docs/demo.md`. Demo data states: REAL DATA (stored non-replay),
+REPLAY (labeled synthetic), UNAVAILABLE, COMING SOON.
+
+## Replay mode
+
+Synthetic X-shaped events live in `data/replay/x_synthetic.jsonl`, always
+labeled `replay`. Load them without touching live platforms:
+
+```bash
+uv run python scripts/run_replay.py
+```
+
+Replay output must never be described as live platform data.
+
+## Live ingestion (separate from the demo)
+
+```bash
+uv run python scripts/run_x_search.py
 uv run python scripts/run_telegram_history.py public_channel --max-messages 20
-uv run python scripts/run_telegram_stream.py --channel public_channel --duration-seconds 30
 ```
 
-Private conversations are out of scope. When the three settings are absent, these
-commands report `SKIPPED` without fabricating events.
+Bounded, credential-gated, and SKIPPED without configuration. Private
+Telegram conversations are out of scope.
 
-## Continuous analytics
+## Known limitations
 
-Enable the lightweight in-process scheduler for a single Uvicorn worker:
-
-```bash
-SCHEDULER_ENABLED=true uv run uvicorn app.main:app
-```
-
-The scheduler starts and stops with FastAPI lifespan and runs four isolated jobs:
-
-- bounded X Recent Search collection;
-- NLP for events without an `nlp_analysis` row;
-- graph extraction for events without a graph-processing marker;
-- BERTrend only when newly collected canonical events exist.
-
-Intervals and batch behavior are configured with:
-
-```dotenv
-X_SEARCH_INTERVAL_SECONDS=60
-NLP_PROCESSING_INTERVAL_SECONDS=30
-TREND_INTERVAL_SECONDS=900
-GRAPH_INTERVAL_SECONDS=300
-SCHEDULER_TICK_SECONDS=1
-ANALYTICS_JOB_BATCH_SIZE=100
-ANALYTICS_INCLUDE_REPLAY=false
-```
-
-Inspect `/api/system/jobs` and `/api/health`. A bounded local verification can be run with:
-
-```bash
-uv run python scripts/run_scheduler.py --duration-seconds 25
-```
-
-Use one scheduler-owning process. Multiple scheduler-enabled Uvicorn workers would each dispatch jobs.
-
-## React dashboard
-
-The dashboard is a TypeScript/Vite client of FastAPI. Start the backend, then:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Vite serves `http://127.0.0.1:5173` and proxies `/api` to FastAPI on port 8000. Use `npm run build`, `npm run test`, and `npm run lint` for verification. Centralized query caching polls live events every 5 seconds, system health/jobs every 10 seconds, and broader analytics every 30 seconds.
-
-Transformer weights are downloaded only when explicitly enabled or when the model smoke test is run. Live X checks require `X_BEARER_TOKEN`; live Telegram checks require all three Telegram settings and an authorized public-channel session. Missing credentials are reported as skipped. Replay data is synthetic and is always labeled as replay.
-
-See `docs/api-access.md` and `docs/limitations.md` before describing any source as live.
+Rising/cooling evidence is thin (one matched topic); several cascades are
+partially observable; geography is 75% unknown; profession sectors are
+heuristic interest signals; the scheduler is process-local without soak
+testing. Full list: `docs/limitations.md`. See `docs/api-access.md` before
+describing any source as live.

@@ -73,7 +73,7 @@ it('renders aggregate dimensions with unknown cohorts, never individuals', async
   renderPage()
   expect(await screen.findByText('Audience Demographics')).toBeInTheDocument()
   expect(screen.getByText('Age Distribution')).toBeInTheDocument()
-  expect(screen.getByText('Dimension unavailable')).toBeInTheDocument()
+  expect(screen.getByText('Age estimates unavailable')).toBeInTheDocument()
   expect(screen.getByText('Geographic Distribution')).toBeInTheDocument()
   expect(screen.getByText('India')).toBeInTheDocument()
   expect(screen.getByText(/Unknown \/ insufficient evidence: 2/)).toBeInTheDocument()
