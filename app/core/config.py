@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     x_search_interval_seconds: int = Field(default=60, ge=10)
     x_max_pages_per_run: int = Field(default=1, ge=1, le=100)
 
+    youtube_api_key: str | None = None
+    youtube_video_id: str = ""
+    youtube_max_results: int = Field(default=50, ge=1, le=500)
+    youtube_max_pages: int = Field(default=2, ge=1, le=20)
+    youtube_max_api_calls: int = Field(default=10, ge=1, le=100)
+    youtube_poll_interval_seconds: int = Field(default=60, ge=10)
+
     nlp_batch_size: int = Field(default=16, ge=1, le=128)
     nlp_model_download_enabled: bool = False
     nlp_processing_interval_seconds: int = Field(default=30, ge=1)

@@ -46,6 +46,7 @@ from app.graph.snapshots import build_snapshots, influence_changes
 from app.models.events import CanonicalEvent
 from app.platforms.telegram.adapter import TelegramAdapter
 from app.platforms.x.adapter import XAdapter
+from app.platforms.youtube.adapter import YouTubeAdapter
 from app.scheduler.jobs import GRAPH_JOB, NLP_JOB, TREND_JOB, X_COLLECTION_JOB
 from app.scheduler.schemas import JobRunStatus
 from app.trends.repository import TrendRepository
@@ -124,6 +125,9 @@ def health(
             telegram_api=ComponentHealth(
                 status="SKIPPED", detail="Database health failed first"
             ),
+            youtube_api=ComponentHealth(
+                status="SKIPPED", detail="Database health failed first"
+            ),
             scheduler=scheduler_health,
             analytics=analytics_health,
             event_count=0,
@@ -161,6 +165,7 @@ def health(
         for component in [scheduler_health, analytics_health]
     ) or x_status != "PASS"
     telegram_health = TelegramAdapter().configuration_health()
+    youtube_health = YouTubeAdapter().configuration_health()
     platform_summaries = [
         PlatformDataSummary.model_validate(item)
         for item in repository.platform_event_summaries()
@@ -172,6 +177,10 @@ def health(
         telegram_api=ComponentHealth(
             status=telegram_health.status,
             detail=telegram_health.detail,
+        ),
+        youtube_api=ComponentHealth(
+            status=youtube_health.status,
+            detail=youtube_health.detail,
         ),
         scheduler=scheduler_health,
         analytics=analytics_health,
@@ -244,6 +253,10 @@ def enriched_events(
     limit: int = Query(default=50, ge=1, le=250),
     offset: int = Query(default=0, ge=0),
     platform: str | None = None,
+    q: str | None = Query(default=None, max_length=200),
+    sentiment: str | None = None,
+    emotion: str | None = None,
+    interaction: str | None = None,
     newest_first: bool = True,
     repository: SocialRepository = Depends(get_repository),
 ) -> EnrichedEventListResponse:
@@ -251,12 +264,19 @@ def enriched_events(
         limit=limit,
         offset=offset,
         platform=platform,
+        search=q,
+        sentiment=sentiment,
+        emotion=emotion,
+        interaction=interaction,
         newest_first=newest_first,
     )
     return EnrichedEventListResponse(
         items=[EnrichedEvent(event=event, analysis=analysis) for event, analysis in rows],
         count=len(rows),
-        total=repository.count_events(platform=platform),
+        total=repository.count_enriched_events(
+            platform=platform, search=q, sentiment=sentiment,
+            emotion=emotion, interaction=interaction,
+        ),
         offset=offset,
         limit=limit,
     )

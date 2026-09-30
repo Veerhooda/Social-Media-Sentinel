@@ -11,14 +11,13 @@ export function TopicEvolutionChart({ points }: { points: TopicEvolutionPoint[] 
     <div className="chart chart--medium" aria-label="Topic volume evolution chart">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={points} margin={{ left: -20, right: 12, top: 8, bottom: 4 }}>
-          <CartesianGrid stroke="#eef0f3" vertical={false} />
-          <XAxis dataKey="window_start" tickFormatter={(value) => formatDateTime(String(value)).split(',').at(-1) ?? ''} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-          <Tooltip labelFormatter={(value) => formatDateTime(String(value))} contentStyle={{ borderRadius: 10, borderColor: '#eaecef', fontSize: 12 }} />
-          <Line dataKey="volume" name="Volume" stroke="#ff7a00" strokeWidth={2.4} activeDot={{ r: 4 }} />
+          <CartesianGrid stroke="#303234" vertical={false} />
+          <XAxis dataKey="window_start" tickFormatter={(value) => formatDateTime(String(value)).split(',').at(-1) ?? ''} tick={{ fontSize: 12, fill: '#a1a3a5' }} axisLine={false} tickLine={false} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#a1a3a5' }} axisLine={false} tickLine={false} />
+          <Tooltip labelFormatter={(value) => formatDateTime(String(value))} contentStyle={{ borderRadius: 12, borderColor: '#434547', background: '#1d1f21', color: '#f5f5f2', fontSize: 13 }} />
+          <Line dataKey="volume" name="Volume" stroke="#f6de62" strokeWidth={2.5} activeDot={{ r: 5 }} />
         </LineChart>
       </ResponsiveContainer>
     </div>
   )
 }
-

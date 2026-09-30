@@ -1,0 +1,18 @@
+{
+  "kind": "youtube#commentListResponse",
+  "items": [
+    {
+      "kind": "youtube#comment",
+      "id": "comment-reply-2",
+      "snippet": {
+        "authorDisplayName": "Replier Three",
+        "authorChannelId": {"value": "UC_reply2"},
+        "textDisplay": "Adding more context here",
+        "textOriginal": "Adding more context here",
+        "publishedAt": "2026-09-18T10:09:00Z",
+        "likeCount": 1,
+        "parentId": "comment-top-1"
+      }
+    }
+  ]
+}

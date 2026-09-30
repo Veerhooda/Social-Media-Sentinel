@@ -12,10 +12,6 @@ command -v npm >/dev/null || { echo "FAIL: npm is required"; exit 1; }
 echo "-- validating demo environment"
 SCHEDULER_ENABLED=false uv run python scripts/demo_check.py
 
-echo "-- applying migrations (schema only, data untouched)"
-uv run alembic upgrade head >/dev/null
-echo "migrations current"
-
 export SCHEDULER_ENABLED=false
 echo "-- starting FastAPI (scheduler disabled, read-only demo)"
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 &
@@ -27,7 +23,10 @@ echo "backend: http://127.0.0.1:8000/api/health"
 
 echo "-- starting frontend"
 cd frontend
-if [ ! -d node_modules ]; then npm install; fi
+if [ ! -d node_modules ]; then
+  echo "FAIL: frontend dependencies missing; run npm ci in frontend/ before the demo"
+  exit 1
+fi
 npm run dev -- --host 127.0.0.1 --port 5173 &
 UI_PID=$!
 trap 'kill $API_PID $UI_PID 2>/dev/null || true' EXIT

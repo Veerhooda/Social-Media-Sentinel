@@ -25,21 +25,20 @@ export function SentimentChart({ points }: { points: TemporalPoint[] }) {
     <div className="chart chart--large" aria-label="Sentiment over time chart">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 10, right: 8, bottom: 2, left: -20 }}>
-          <CartesianGrid stroke="#eef0f3" vertical={false} />
-          <XAxis dataKey="timestamp" tickFormatter={(value) => formatDateTime(String(value)).split(',').at(-1) ?? ''} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-          <YAxis domain={[0, 100]} tickFormatter={(value) => `${value}%`} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+          <CartesianGrid stroke="#303234" vertical={false} />
+          <XAxis dataKey="timestamp" tickFormatter={(value) => formatDateTime(String(value)).split(',').at(-1) ?? ''} tick={{ fontSize: 12, fill: '#a1a3a5' }} axisLine={false} tickLine={false} />
+          <YAxis domain={[0, 100]} tickFormatter={(value) => `${value}%`} tick={{ fontSize: 12, fill: '#a1a3a5' }} axisLine={false} tickLine={false} />
           <Tooltip
             labelFormatter={(value) => formatDateTime(String(value))}
             formatter={(value, name) => [`${Number(value).toFixed(1)}%`, String(name)]}
-            contentStyle={{ borderRadius: 10, borderColor: '#eaecef', fontSize: 12 }}
+            contentStyle={{ borderRadius: 12, borderColor: '#434547', background: '#1d1f21', color: '#f5f5f2', fontSize: 13 }}
           />
-          <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 11 }} />
-          <Line type="monotone" dataKey="positive" stroke="#10b981" strokeWidth={2.3} dot={false} activeDot={{ r: 4 }} />
-          <Line type="monotone" dataKey="neutral" stroke="#94a3b8" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="negative" stroke="#e11d48" strokeWidth={2.3} dot={false} activeDot={{ r: 4 }} />
+          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
+          <Line type="monotone" dataKey="positive" stroke="#27cdb8" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
+          <Line type="monotone" dataKey="neutral" stroke="#f6de62" strokeWidth={2.2} dot={false} />
+          <Line type="monotone" dataKey="negative" stroke="#ff7a35" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
         </LineChart>
       </ResponsiveContainer>
     </div>
   )
 }
-

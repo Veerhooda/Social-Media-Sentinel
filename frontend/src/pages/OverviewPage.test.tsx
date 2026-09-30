@@ -12,6 +12,7 @@ function renderWithHealth(platforms: unknown[]) {
     database: { status: 'PASS', detail: 'PostgreSQL reachable' },
     x_api: { status: 'SKIPPED', detail: 'Collector paused' },
     telegram_api: { status: 'SKIPPED', detail: 'Collector paused' },
+    youtube_api: { status: 'SKIPPED', detail: 'YOUTUBE_API_KEY is not configured' },
     scheduler: { status: 'SKIPPED', detail: 'Disabled' },
     analytics: { status: 'SKIPPED', detail: 'Disabled' },
     event_count: 1,
@@ -34,8 +35,10 @@ function renderWithHealth(platforms: unknown[]) {
         ? health
         : url.includes('/system/jobs')
           ? jobs
-          : url.includes('/events')
+        : url.includes('/events')
             ? emptyList
+            : url.includes('/analytics/topics')
+              ? { status: 'PASS', engine: 'BERTrend', items: [], detail: null }
             : url.includes('/analytics/sentiment') || url.includes('/analytics/emotions')
               ? emptySeries
               : url.includes('/analytics/trends')
@@ -49,7 +52,7 @@ function renderWithHealth(platforms: unknown[]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/dashboard']}>
         <OverviewPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -61,6 +64,8 @@ it('shows live badges only for platforms with stored data', async () => {
     { platform: 'x', event_count: 1, real_event_count: 1, replay_event_count: 0, latest_created_at: null, latest_collected_at: '2026-09-20T18:00:00Z' },
   ])
   expect(await screen.findByText('Data Sources')).toBeInTheDocument()
-  expect(screen.getByText('LIVE DATA')).toBeInTheDocument()
+  expect(screen.getByText('STORED DATA')).toBeInTheDocument()
   expect(screen.getByText('NO STORED DATA')).toBeInTheDocument()
+  expect(screen.getByText('NOT CONFIGURED')).toBeInTheDocument()
+  expect(screen.getAllByText('YouTube').length).toBeGreaterThan(0)
 })

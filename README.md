@@ -36,7 +36,8 @@ aggregate demographics, FastAPI, React dashboard, replay mode, health/job status
 dashboard report UNAVAILABLE instead of fabricated brackets.
 - Arbitrary-target stance: fixed-target models are never misused as general
 stance engines.
-- YouTube and Reddit: COMING SOON. Meta/Instagram/Facebook: PLANNED, inactive.
+- YouTube: polling adapter and local integration implemented; live API unverified.
+  Reddit: COMING SOON. Meta/Instagram/Facebook: PLANNED, inactive.
 - Per-event topic labels, follower graphs, diffusion simulation: not present.
 
 ## Architecture
@@ -119,7 +120,7 @@ Health: `http://127.0.0.1:8000/api/health`. The scheduler is off unless
 cd frontend && npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
-Open `http://127.0.0.1:5173`. Verify with `npm run build`, `npm test`, `npm run lint`.
+Open `http://127.0.0.1:5173` for the public landing page, then use **Enter the dashboard** to open `/dashboard`. Verify with `npm run build`, `npm test`, `npm run lint`.
 
 ## Local demo
 
@@ -130,8 +131,9 @@ One command, read-only, no credentials, no downloads, no collection:
 ```
 
 It validates the environment (`scripts/demo_check.py`: database, schema,
-stored rows, migrations, backend import, frontend build), applies migrations,
-starts FastAPI with the scheduler disabled, and starts Vite. Follow the judge
+stored rows, current migration revision, backend import, frontend build),
+starts FastAPI with the scheduler disabled, and starts Vite. Run migrations
+separately during setup. Follow the judge
 runbook in `docs/demo.md`. Demo data states: REAL DATA (stored non-replay),
 REPLAY (labeled synthetic), UNAVAILABLE, COMING SOON.
 
@@ -151,6 +153,7 @@ Replay output must never be described as live platform data.
 ```bash
 uv run python scripts/run_x_search.py
 uv run python scripts/run_telegram_history.py public_channel --max-messages 20
+uv run python scripts/run_youtube_comments.py --video-id VIDEO_ID --max-results 10 --max-pages 1
 ```
 
 Bounded, credential-gated, and SKIPPED without configuration. Private

@@ -31,10 +31,17 @@ def test_snapshots_use_source_time_windows() -> None:
     edges = [_edge("a", "b", 0.2), _edge("b", "c", 0.4), _edge("c", "d", 5.0)]
     snapshots, anchored = build_snapshots(edges, window="1h", count=6)
     assert len(snapshots) == 6
-    assert anchored == max(edge.occurred_at for edge in edges)
+    assert anchored > max(edge.occurred_at for edge in edges)
     populated = [s for s in snapshots if s.edges]
     assert len(populated) == 2
     assert all(s.window_end > s.window_start for s in snapshots)
+
+
+def test_latest_edge_is_included_in_the_last_snapshot() -> None:
+    newest = _edge("newest", "target", 0)
+    snapshots, _ = build_snapshots([newest], window="1h", count=1)
+    assert snapshots[0].edges == 1
+    assert snapshots[0].window_start <= newest.occurred_at < snapshots[0].window_end
 
 
 def test_snapshots_empty_without_edges() -> None:
@@ -99,6 +106,43 @@ def test_cascade_marks_partially_observable_provenance() -> None:
     cascade = reconstruct_cascades(events)[0]
     assert cascade.provenance == "partially observable"
     assert cascade.missing_parents == 1
+
+
+def test_missing_parent_does_not_create_an_observed_path() -> None:
+    base = datetime(2026, 9, 20, 12, 0, tzinfo=UTC)
+    root = CascadeEvent(
+        event_id=uuid4(), platform="x", platform_post_id="root",
+        parent_platform_post_id=None, thread_root_id="root",
+        author_label="x:root", created_at=base, interaction_type="post",
+    )
+    orphan = CascadeEvent(
+        event_id=uuid4(), platform="x", platform_post_id="orphan",
+        parent_platform_post_id="uncollected", thread_root_id="root",
+        author_label="x:orphan", created_at=base, interaction_type="reply",
+    )
+    cascade = reconstruct_cascades([root, orphan])[0]
+    assert cascade.provenance == "partially observable"
+    assert cascade.depth == 1
+    assert len(propagation_path(cascade)) == 1
+
+
+def test_parent_created_after_child_is_not_an_observed_path() -> None:
+    from datetime import timedelta
+
+    base = datetime(2026, 9, 20, 12, 0, tzinfo=UTC)
+    parent = CascadeEvent(
+        event_id=uuid4(), platform="x", platform_post_id="parent",
+        parent_platform_post_id=None, thread_root_id="parent",
+        author_label="x:parent", created_at=base + timedelta(minutes=1), interaction_type="post",
+    )
+    child = CascadeEvent(
+        event_id=uuid4(), platform="x", platform_post_id="child",
+        parent_platform_post_id="parent", thread_root_id="parent",
+        author_label="x:child", created_at=base, interaction_type="reply",
+    )
+    cascade = reconstruct_cascades([parent, child])[0]
+    assert cascade.provenance == "partially observable"
+    assert cascade.depth == 1
 
 
 def test_propagation_path_is_chronological_with_nlp() -> None:

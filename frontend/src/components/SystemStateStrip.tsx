@@ -5,6 +5,7 @@ export function SystemStateStrip({ health, jobs }: { health: HealthResponse; job
   const source = (platform: string) => health.platforms.find((item) => item.platform === platform)
   const x = source('x')
   const telegram = source('telegram')
+  const youtube = source('youtube')
   const mode = health.real_event_count && health.replay_event_count
     ? 'Mixed real and replay data'
     : health.real_event_count
@@ -22,6 +23,7 @@ export function SystemStateStrip({ health, jobs }: { health: HealthResponse; job
       </div>
       <SourceStat label="X" count={x?.real_event_count ?? 0} detail={health.x_api.detail} />
       <SourceStat label="Telegram" count={telegram?.real_event_count ?? 0} detail={health.telegram_api.detail} />
+      <SourceStat label="YouTube" count={youtube?.real_event_count ?? 0} detail={health.youtube_api.detail} />
       <div className="system-state__item">
         <span className={`source-dot ${jobs?.running ? 'is-active' : ''}`} />
         <div><strong>Scheduler</strong><span>{jobs?.running ? 'Running' : 'Paused'}</span></div>

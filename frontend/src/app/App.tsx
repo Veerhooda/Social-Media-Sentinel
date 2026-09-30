@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoadingState } from '../components/States'
 import { AppShell } from '../layouts/AppShell'
 
+const LandingPage = lazy(() => import('../pages/LandingPage').then((module) => ({ default: module.LandingPage })))
 const OverviewPage = lazy(() => import('../pages/OverviewPage').then((module) => ({ default: module.OverviewPage })))
 const LiveFeedPage = lazy(() => import('../pages/LiveFeedPage').then((module) => ({ default: module.LiveFeedPage })))
 const SentimentPage = lazy(() => import('../pages/SentimentPage').then((module) => ({ default: module.SentimentPage })))
@@ -18,8 +19,9 @@ const UnavailablePage = lazy(() => import('../pages/UnavailablePage').then((modu
 export function App() {
   return (
     <Suspense fallback={<LoadingState />}><Routes>
+      <Route index element={<LandingPage />} />
       <Route element={<AppShell />}>
-        <Route index element={<OverviewPage />} />
+        <Route path="dashboard" element={<OverviewPage />} />
         <Route path="live-feed" element={<LiveFeedPage />} />
         <Route path="sentiment" element={<SentimentPage />} />
         <Route path="trends" element={<TrendsPage />} />
@@ -30,8 +32,8 @@ export function App() {
         <Route path="data-sources" element={<DataSourcesPage />} />
         <Route path="collection-status" element={<CollectionStatusPage />} />
         <Route path="settings" element={<UnavailablePage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes></Suspense>
   )
 }

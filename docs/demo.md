@@ -12,7 +12,9 @@ stored X + Telegram data. Demonstrates the unified timeline (PS A).
 ## STEP 2 — Show source status
 
 Scroll to Data Sources. X and Telegram show stored real-event counts;
-YouTube/Reddit show COMING SOON; Meta shows PLANNED. No fake throughput.
+YouTube shows its implemented polling adapter with no stored rows unless a
+video was explicitly collected; Reddit shows COMING SOON and Meta shows
+PLANNED. No fake throughput.
 Demonstrates honest collection state (PS A).
 
 ## STEP 3 — Show Live Feed

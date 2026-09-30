@@ -6,7 +6,7 @@ are reproducible and never random.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from app.graph.builder import GraphBuilder
 from app.graph.metrics import calculate_network_metrics
@@ -37,7 +37,13 @@ def build_snapshots(
     if not edges:
         return [], None
     step = WINDOW_PRESETS[window]
-    anchored_at = max(edge.occurred_at for edge in edges)
+    latest = max(edge.occurred_at for edge in edges).astimezone(UTC)
+    epoch = datetime(1970, 1, 1, tzinfo=UTC)
+    elapsed = latest - epoch
+    step_count = elapsed // step
+    # Windows are half open, so use the first boundary strictly after the
+    # latest event. The prior implementation dropped the newest edge.
+    anchored_at = epoch + (step_count + 1) * step
     snapshots: list[TemporalSnapshot] = []
     for index in range(count):
         window_end = anchored_at - step * index

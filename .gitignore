@@ -27,3 +27,5 @@ build/
 node_modules/
 .playwright-cli/
 output/playwright/
+# Local recordings, presentation exports, API snapshots, and generated media.
+output/

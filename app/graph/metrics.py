@@ -14,7 +14,11 @@ def calculate_network_metrics(graph: nx.DiGraph) -> NetworkSummary:
 
     in_degree = nx.in_degree_centrality(graph)
     out_degree = nx.out_degree_centrality(graph)
-    betweenness = nx.betweenness_centrality(graph, weight="weight", normalized=True)
+    # Configured edge weights represent interaction strength. NetworkX
+    # betweenness interprets weights as path lengths, so use the reciprocal.
+    for _, _, edge_data in graph.edges(data=True):
+        edge_data["distance"] = 1.0 / edge_data["weight"]
+    betweenness = nx.betweenness_centrality(graph, weight="distance", normalized=True)
     closeness = nx.closeness_centrality(graph)
     pagerank = nx.pagerank(graph, weight="weight")
     if edge_count:
@@ -50,4 +54,3 @@ def calculate_network_metrics(graph: nx.DiGraph) -> NetworkSummary:
         communities=len(set(communities.values())),
         metrics=metrics,
     )
-

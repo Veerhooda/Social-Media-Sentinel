@@ -15,6 +15,7 @@ import {
 } from '../hooks/useApiQueries'
 import { NetworkGraph } from '../network/NetworkGraph'
 import { formatDateTime, formatDuration, formatNumber } from '../utils/format'
+import { communityColor, shortNodeLabel } from '../utils/network'
 
 const WINDOWS = ['15m', '1h', '6h', '24h'] as const
 
@@ -38,12 +39,12 @@ export function NetworkPage() {
   if (summary.error || graph.error) return <ErrorState error={summary.error ?? graph.error} />
   return (
     <div className="page-stack">
-      <PageHeader title="Network Analysis" subtitle="Observed interaction network from replies, mentions, quotes, reposts and forwards—structural influence only, never causal claims." />
+      <PageHeader title="Interaction map" subtitle="Explore observed replies, mentions, quotes, reposts and forwards. This maps interaction structure—not a follower network or causal influence." />
       <div className="metric-grid metric-grid--four"><MetricCard label="Nodes" value={formatNumber(summary.data?.summary.nodes ?? 0)} detail="observed accounts" icon={UsersRound} tone="blue" /><MetricCard label="Edges" value={formatNumber(summary.data?.summary.edges ?? 0)} detail="aggregated interactions" icon={GitBranch} /><MetricCard label="Communities" value={summary.data?.summary.communities ?? 0} detail="Louvain partition" icon={Orbit} tone="purple" /><MetricCard label="Density" value={(summary.data?.summary.density ?? 0).toFixed(4)} detail="directed graph density" icon={Network} tone="green" /></div>
       <div className="network-layout">
-        <Panel title="Interaction Network" subtitle="Actual collected relationships · node size follows PageRank" className="network-layout__graph"><NetworkGraph graph={graph.data!} onSelect={setSelected} /><div className="relationship-legend">{relationships.map(([type, count]) => <span key={type}><i />{type} <b>{count}</b></span>)}</div></Panel>
+        <Panel title="Conversation topology" subtitle="Recent-edge sample · directed stored interactions · colors and node size recalculated for this loaded graph" className="network-layout__graph"><NetworkGraph graph={graph.data!} onSelect={setSelected} selected={selected} /><div className="relationship-legend">{relationships.map(([type, count]) => <span key={type}><i />{type} <b>{count}</b></span>)}</div></Panel>
         <Panel title={selectedNode ? 'Selected Node' : 'Top Influence'} subtitle={selectedNode ? selectedNode.node_id : 'Structural metrics, not causal influence'} className="network-layout__side">
-          {selectedNode ? <dl className="detail-list"><dt>Community</dt><dd>{selectedNode.community ?? 'Unknown'}</dd><dt>PageRank</dt><dd>{selectedNode.pagerank.toFixed(5)}</dd><dt>Authority</dt><dd>{selectedNode.authority_score.toFixed(5)}</dd><dt>Hub</dt><dd>{selectedNode.hub_score.toFixed(5)}</dd><dt>Betweenness</dt><dd>{selectedNode.betweenness_centrality.toFixed(5)}</dd></dl> : <div className="ranking-list">{top.map((node, index) => <button type="button" key={node.node_id} onClick={() => setSelected(node.node_id)}><b>{index + 1}</b><span>{node.node_id}</span><em>{node.pagerank.toFixed(4)}</em></button>)}</div>}
+          {selectedNode ? <><button type="button" className="network-selection-back" onClick={() => setSelected(null)}>← Back to ranking</button><dl className="detail-list"><dt>Community</dt><dd>{selectedNode.community ?? 'Unknown'}</dd><dt>PageRank</dt><dd>{selectedNode.pagerank.toFixed(5)}</dd><dt>Authority</dt><dd>{selectedNode.authority_score.toFixed(5)}</dd><dt>Hub</dt><dd>{selectedNode.hub_score.toFixed(5)}</dd><dt>Betweenness</dt><dd>{selectedNode.betweenness_centrality.toFixed(5)}</dd></dl><div className="network-relationships"><h3>Observed relationships</h3>{graph.data!.edges.filter((edge) => edge.source === selected || edge.target === selected).slice(0, 10).map((edge) => <p key={edge.event_id}><span>{edge.source === selected ? 'Outgoing' : 'Incoming'} · {edge.interaction_type}</span><strong>{shortNodeLabel(edge.source === selected ? edge.target : edge.source)}</strong><small>{formatDateTime(edge.occurred_at)}</small></p>)}</div></> : <div className="ranking-list">{top.map((node, index) => <button type="button" key={node.node_id} onClick={() => setSelected(node.node_id)}><b>{index + 1}</b><i style={{ background: communityColor(node.community) }} /><span>{shortNodeLabel(node.node_id)}<small>{node.node_id.split(':')[0].toUpperCase()} · community {node.community ?? '—'}</small></span><em>{node.pagerank.toFixed(4)}</em></button>)}</div>}
         </Panel>
       </div>
 

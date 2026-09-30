@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Select, func, select, text, update
+from sqlalchemy import Select, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -133,16 +133,22 @@ class SocialRepository:
         limit: int = 100,
         offset: int = 0,
         platform: str | None = None,
+        search: str | None = None,
+        sentiment: str | None = None,
+        emotion: str | None = None,
+        interaction: str | None = None,
         newest_first: bool = True,
     ) -> list[tuple[CanonicalEvent, NLPResult | None]]:
         query = self._event_query().outerjoin(
             NLPAnalysis, NLPAnalysis.event_id == SocialEvent.event_id
         ).add_columns(NLPAnalysis)
-        if platform:
-            query = query.where(SocialEvent.platform == platform)
+        query = self._filter_enriched_query(
+            query, platform=platform, search=search, sentiment=sentiment,
+            emotion=emotion, interaction=interaction,
+        )
         ordering = SocialEvent.created_at.desc() if newest_first else SocialEvent.created_at.asc()
         rows = self.session.execute(
-            query.order_by(ordering).offset(offset).limit(limit)
+            query.order_by(ordering, SocialEvent.event_id.desc()).offset(offset).limit(limit)
         ).all()
         return [
             (
@@ -151,6 +157,54 @@ class SocialRepository:
             )
             for row in rows
         ]
+
+    def count_enriched_events(
+        self,
+        *,
+        platform: str | None = None,
+        search: str | None = None,
+        sentiment: str | None = None,
+        emotion: str | None = None,
+        interaction: str | None = None,
+    ) -> int:
+        query = select(func.count()).select_from(SocialEvent).join(
+            SocialUser, SocialUser.user_id == SocialEvent.author_id
+        ).outerjoin(NLPAnalysis, NLPAnalysis.event_id == SocialEvent.event_id)
+        query = self._filter_enriched_query(
+            query, platform=platform, search=search, sentiment=sentiment,
+            emotion=emotion, interaction=interaction,
+        )
+        return self.session.execute(query).scalar_one()
+
+    @staticmethod
+    def _filter_enriched_query(
+        query: Select,
+        *,
+        platform: str | None,
+        search: str | None,
+        sentiment: str | None,
+        emotion: str | None,
+        interaction: str | None,
+    ) -> Select:
+        if platform:
+            query = query.where(SocialEvent.platform == platform)
+        if interaction:
+            query = query.where(SocialEvent.interaction_type == interaction)
+        if sentiment:
+            query = query.where(NLPAnalysis.sentiment_label == sentiment)
+        if emotion:
+            query = query.where(NLPAnalysis.primary_emotion == emotion)
+        if search:
+            # Treat user input as a literal substring, not as LIKE wildcards.
+            escaped = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+            query = query.where(or_(
+                SocialEvent.content_text.ilike(pattern, escape="\\"),
+                SocialUser.username.ilike(pattern, escape="\\"),
+                SocialUser.display_name.ilike(pattern, escape="\\"),
+                func.array_to_string(SocialEvent.hashtags, " ").ilike(pattern, escape="\\"),
+            ))
+        return query
 
     def count_events(self, *, platform: str | None = None) -> int:
         query = select(func.count()).select_from(SocialEvent)

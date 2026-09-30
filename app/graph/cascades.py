@@ -43,13 +43,20 @@ class ObservedCascade:
 
     @property
     def depth(self) -> int:
+        by_post = {event.platform_post_id: event for event in self.events}
         children: dict[str, list[str]] = {}
         for event in self.events:
-            if event.parent_platform_post_id:
+            if (
+                event.parent_platform_post_id in by_post
+                and by_post[event.parent_platform_post_id].created_at <= event.created_at
+            ):
                 children.setdefault(event.parent_platform_post_id, []).append(event.platform_post_id)
-        roots = [event.platform_post_id for event in self.events if not event.parent_platform_post_id]
-        if not roots and self.events:
-            roots = [min(self.events, key=lambda item: item.created_at).platform_post_id]
+        roots = [
+            event.platform_post_id
+            for event in self.events
+            if event.parent_platform_post_id not in by_post
+            or by_post[event.parent_platform_post_id].created_at > event.created_at
+        ]
 
         def longest(post_id: str, visiting: frozenset[str]) -> int:
             if post_id in visiting:
@@ -100,7 +107,10 @@ def reconstruct_cascades(events: list[CascadeEvent]) -> list[ObservedCascade]:
             1
             for event in members
             if event.parent_platform_post_id
-            and (platform, event.parent_platform_post_id) not in by_post
+            and (
+                (platform, event.parent_platform_post_id) not in by_post
+                or by_post[(platform, event.parent_platform_post_id)].created_at > event.created_at
+            )
         )
         cascades.append(
             ObservedCascade(
@@ -120,13 +130,19 @@ def propagation_path(
 ) -> list[dict]:
     """Longest root-to-leaf chain; chronological; no invented edges."""
     communities = communities or {}
+    by_post = {event.platform_post_id: event for event in cascade.events}
     children: dict[str, list[CascadeEvent]] = {}
     for event in cascade.events:
-        if event.parent_platform_post_id:
+        if (
+            event.parent_platform_post_id in by_post
+            and by_post[event.parent_platform_post_id].created_at <= event.created_at
+        ):
             children.setdefault(event.parent_platform_post_id, []).append(event)
-    roots = [event for event in cascade.events if not event.parent_platform_post_id]
-    if not roots:
-        roots = [min(cascade.events, key=lambda item: item.created_at)]
+    roots = [
+        event for event in cascade.events
+        if event.parent_platform_post_id not in by_post
+        or by_post[event.parent_platform_post_id].created_at > event.created_at
+    ]
 
     def longest(event: CascadeEvent, visiting: frozenset[str]) -> list[CascadeEvent]:
         best: list[CascadeEvent] = [event]

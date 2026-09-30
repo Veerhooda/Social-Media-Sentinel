@@ -10,6 +10,10 @@ export interface EventQuery {
   limit?: number
   offset?: number
   platform?: string
+  q?: string
+  sentiment?: string
+  emotion?: string
+  interaction?: string
   newest_first?: boolean
 }
 

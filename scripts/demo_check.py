@@ -56,18 +56,22 @@ def main() -> int:
     except Exception as exc:
         report("database", "FAIL", f"PostgreSQL unreachable: {exc}")
 
-    # 3. Migrations current (offline comparison, no writes).
+    # 3. Check the applied revision without running autogenerate.
     try:
-        import subprocess
+        from alembic.config import Config
+        from alembic.runtime.migration import MigrationContext
+        from alembic.script import ScriptDirectory
 
-        proc = subprocess.run(
-            [sys.executable, "-m", "alembic", "check"],
-            cwd=ROOT, capture_output=True, text=True, timeout=60,
-        )
-        if proc.returncode == 0:
-            report("migrations", "PASS", "no schema drift detected")
+        from app.db.session import engine
+
+        config = Config(str(ROOT / "alembic.ini"))
+        head = ScriptDirectory.from_config(config).get_current_head()
+        with engine.connect() as connection:
+            revision = MigrationContext.configure(connection).get_current_revision()
+        if revision == head:
+            report("migrations", "PASS", f"database at revision {head}")
         else:
-            report("migrations", "FAIL", (proc.stderr or proc.stdout).strip().splitlines()[-1:])
+            report("migrations", "FAIL", f"database revision {revision}; expected {head}")
     except Exception as exc:
         report("migrations", "FAIL", str(exc))
 

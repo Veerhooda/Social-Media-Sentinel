@@ -34,11 +34,12 @@ class GraphBuilder:
         if relationships.forwarded_from_id:
             targets.append((relationships.forwarded_from_id, "forward", self.weights.forward))
 
-        mention_ids = event.source_metadata.get("mention_ids") or []
-        mention_targets = [str(item) for item in mention_ids]
-        if not mention_targets:
-            mention_targets = [f"username:{username.lower()}" for username in event.content.mentions]
-        targets.extend((target, "mention", self.weights.mention) for target in mention_targets)
+        if event.source_metadata.get("mention_relationships_verified", True):
+            mention_ids = event.source_metadata.get("mention_ids") or []
+            mention_targets = [str(item) for item in mention_ids]
+            if not mention_targets:
+                mention_targets = [f"username:{username.lower()}" for username in event.content.mentions]
+            targets.extend((target, "mention", self.weights.mention) for target in mention_targets)
 
         unique: dict[tuple[str, str], EdgeRecord] = {}
         for target, kind, weight in targets:
@@ -75,4 +76,3 @@ class GraphBuilder:
                     interaction_types={edge.interaction_type},
                 )
         return graph
-

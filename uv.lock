@@ -3705,6 +3705,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "google-api-python-client" },
     { name = "langdetect" },
     { name = "networkx" },
     { name = "psycopg", extra = ["binary"] },
@@ -3737,6 +3738,7 @@ requires-dist = [
     { name = "alembic", marker = "extra == 'dev'", specifier = ">=1.14,<2" },
     { name = "bertrend", marker = "extra == 'trend'", specifier = ">=0.3,<1" },
     { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "google-api-python-client", specifier = ">=2.150,<3" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28,<1" },
     { name = "langdetect", specifier = ">=1.0,<2" },
     { name = "networkx", specifier = ">=3.4,<4" },

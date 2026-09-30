@@ -1,35 +1,76 @@
+import Graph from 'graphology'
+import forceAtlas2 from 'graphology-layout-forceatlas2'
 import type { NetworkGraphResponse, NodeMetrics } from '../types/network'
 
-export interface PositionedNode extends NodeMetrics {
-  x: number
-  y: number
-  radius: number
+export const COMMUNITY_COLORS = ['#4361ee', '#d66a39', '#148b78', '#a05ca7', '#c89b2b', '#3983a9', '#a45d57']
+
+export function communityColor(community: number | null): string {
+  return community == null ? '#64748b' : COMMUNITY_COLORS[Math.abs(community) % COMMUNITY_COLORS.length]
 }
 
-export function positionNetwork(graph: NetworkGraphResponse, width = 760, height = 460): PositionedNode[] {
-  const communities = new Map<number, NodeMetrics[]>()
-  graph.nodes.forEach((node) => {
-    const community = node.community ?? -1
-    communities.set(community, [...(communities.get(community) ?? []), node])
+export function shortNodeLabel(id: string): string {
+  const suffix = id.split(':').slice(1).join(':') || id
+  return suffix.length > 24 ? `${suffix.slice(0, 21)}…` : suffix
+}
+
+export function connectedCore(data: NetworkGraphResponse, limit = 90): NetworkGraphResponse {
+  const degree = new Map<string, number>()
+  data.edges.forEach((edge) => {
+    degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1)
+    degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1)
   })
-  const groups = [...communities.entries()].sort(([left], [right]) => left - right)
-  const centerX = width / 2
-  const centerY = height / 2
-  return groups.flatMap(([, nodes], groupIndex) => {
-    const groupAngle = (groupIndex / Math.max(groups.length, 1)) * Math.PI * 2 - Math.PI / 2
-    const groupDistance = groups.length === 1 ? 0 : Math.min(width, height) * 0.27
-    const groupX = centerX + Math.cos(groupAngle) * groupDistance
-    const groupY = centerY + Math.sin(groupAngle) * groupDistance
-    return nodes.map((node, nodeIndex) => {
-      const angle = (nodeIndex / Math.max(nodes.length, 1)) * Math.PI * 2
-      const spread = 28 + Math.sqrt(nodes.length) * 12
-      return {
-        ...node,
-        x: groupX + Math.cos(angle) * spread,
-        y: groupY + Math.sin(angle) * spread,
-        radius: 5 + Math.sqrt(Math.max(node.pagerank, 0) * 450),
-      }
+  const nodes = [...data.nodes]
+    .filter((node) => degree.has(node.node_id))
+    .sort((a, b) => (degree.get(b.node_id)! - degree.get(a.node_id)!) || b.pagerank - a.pagerank || a.node_id.localeCompare(b.node_id))
+    .slice(0, limit)
+  const included = new Set(nodes.map((node) => node.node_id))
+  const edges = data.edges.filter((edge) => included.has(edge.source) && included.has(edge.target))
+  return { nodes, edges, node_count: nodes.length, edge_count: edges.length }
+}
+
+export function buildVisualGraph(data: NetworkGraphResponse): Graph {
+  const graph = new Graph({ type: 'directed', multi: false, allowSelfLoops: false })
+  const ordered = [...data.nodes].sort((a, b) => a.node_id.localeCompare(b.node_id))
+  const maxRank = Math.max(...ordered.map((node) => node.pagerank), 0)
+
+  ordered.forEach((node: NodeMetrics, index) => {
+    const angle = index * 2.399963229728653
+    const radius = 1.5 * Math.sqrt(index + 1)
+    graph.addNode(node.node_id, {
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+      size: 5 + (maxRank ? Math.sqrt(node.pagerank / maxRank) * 11 : 0),
+      color: communityColor(node.community),
+      label: shortNodeLabel(node.node_id),
+      rank: node.pagerank,
+      community: node.community,
     })
   })
-}
 
+  // The API returns event-level edges. Aggregate parallel interactions for
+  // display while retaining count and total configured weight in the graph.
+  data.edges.forEach((edge) => {
+    if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target) || edge.source === edge.target) return
+    if (graph.hasEdge(edge.source, edge.target)) {
+      const key = graph.edge(edge.source, edge.target)!
+      graph.updateEdgeAttribute(key, 'weight', (weight: number) => weight + edge.weight)
+      graph.updateEdgeAttribute(key, 'count', (count: number) => count + 1)
+    } else {
+      graph.addDirectedEdge(edge.source, edge.target, {
+        weight: edge.weight,
+        count: 1,
+        color: '#55585b',
+        size: 1.3,
+        type: 'arrow',
+      })
+    }
+  })
+
+  if (graph.order > 1 && graph.size > 0) {
+    forceAtlas2.assign(graph, {
+      iterations: Math.min(140, Math.max(45, graph.order * 2)),
+      settings: { ...forceAtlas2.inferSettings(graph), gravity: 0.7, scalingRatio: 12 },
+    })
+  }
+  return graph
+}

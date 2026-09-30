@@ -22,10 +22,10 @@ export function MetricCard({ label, value, detail, change, icon: Icon, tone = 'o
       </div>
       <strong className={unavailable ? 'metric-card__value--muted' : ''}>{value}</strong>
       <div className="metric-card__detail">
-        {change !== undefined && (
+        {change === null && (
           <span className={change == null ? 'change-neutral' : change >= 0 ? 'change-positive' : 'change-negative'}>
             <ChangeIcon size={13} aria-hidden="true" />
-            {change == null ? 'Unavailable' : `${Math.abs(change * 100).toFixed(1)}%`}
+            Unavailable
           </span>
         )}
         <span>{detail}</span>
@@ -33,4 +33,3 @@ export function MetricCard({ label, value, detail, change, icon: Icon, tone = 'o
     </article>
   )
 }
-

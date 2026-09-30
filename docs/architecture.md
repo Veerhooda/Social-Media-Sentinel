@@ -24,15 +24,17 @@ Telethon public history / NewMessage
   -> the same CanonicalEvent/PostgreSQL/NLP/temporal/BERTrend/NetworkX/FastAPI path
 ```
 
-The same downstream path accepts clearly labeled canonical replay events. YouTube,
-Meta and Reddit remain outside this milestone. The aggregate demographic service (language, geography, professional interests; age honestly unavailable) feeds the API and React
-are already implemented shared services; neither contains platform-specific
-Telegram logic.
+The same downstream path accepts clearly labeled canonical replay events and
+YouTube comments from the polling adapter. Meta and Reddit remain unimplemented.
+The aggregate demographic service provides language, geography and professional
+interest estimates; age remains unavailable. BERTrend and React are shared
+services without platform-specific Telegram or YouTube logic.
 
 ## Boundaries
 
 - `app/platforms/x`: all Tweepy and X-response knowledge.
 - `app/platforms/telegram`: all Telethon connection, history, live-update, and mapping knowledge.
+- `app/platforms/youtube`: all YouTube Data API usage, bounded pagination, reply completion, and mapping knowledge.
 - `app/models`: platform-independent canonical contracts.
 - `app/db`: SQLAlchemy models, PostgreSQL connection, repositories.
 - `app/nlp`: direct Transformers checkpoint loading and stable result contracts.
@@ -67,13 +69,29 @@ Per-job locks prevent overlap. One job failure is recorded without stopping othe
 
 ## React client
 
-`frontend/` is a TypeScript React/Vite application with a centralized typed API layer and TanStack Query cache. Recharts renders persisted temporal/topic data; the SVG graph consumes backend nodes and edges with deterministic layout.
+`frontend/` is a TypeScript React/Vite application with a centralized typed API layer and TanStack Query cache. Recharts renders persisted temporal/topic data. Sigma.js renders the interaction map from backend nodes and edges, with a deterministic Graphology/ForceAtlas2 layout, pan/zoom, keyboard-selectable ranked accounts, and explicit connected-core versus all-loaded views. This is a recent-edge sample, not a claim about the complete follower network.
+
+The active UI follows `design.md`'s dark/yellow reference language. The
+overview's charcoal stage contains API-backed corpus totals, source coverage,
+four analytical signals and a source-time sentiment chart. Other routes use
+the same shell, controls and dark analytical surfaces; no crypto-specific
+concepts or fabricated profile/notification controls were introduced.
+The public `/` route is a separate landing page inspired by Dialed's page
+composition (floating navigation, centered editorial hero, staggered
+showcase and scroll-driven floral reveal). A passive scroll listener updates
+the rose reveal within a sticky section; reverse scrolling reverses it and
+reduced-motion users see a static bloom. Its previews are explicitly
+illustrative; it makes no live-data claims. `/dashboard` remains the
+API-backed overview behind the existing app shell, and all other analytical
+routes retain their URLs.
 
 The client never creates analytical labels or random graph data. It displays explicit live, replay, mixed, insufficient, loading, empty, error, and unavailable states.
 The health contract provides one aggregated platform summary, avoiding separate
 count/timestamp requests for X and Telegram. Live Feed platform selection is sent
 to the canonical repository query rather than filtering only the currently loaded
-page.
+page. Text, author/hashtag, NLP, and interaction filters also run in PostgreSQL
+before pagination, with a matching total count. The frontend uses a short
+search debounce and announces result updates to assistive technology.
 
 ## Honest operating modes
 

@@ -1,0 +1,63 @@
+{
+  "kind": "youtube#commentThreadListResponse",
+  "pageInfo": {"totalResults": 2, "resultsPerPage": 2},
+  "nextPageToken": "NEXT123",
+  "items": [
+    {
+      "kind": "youtube#commentThread",
+      "id": "thread-top-1",
+      "snippet": {
+        "videoId": "video-abc",
+        "totalReplyCount": 2,
+        "topLevelComment": {
+          "kind": "youtube#comment",
+          "id": "comment-top-1",
+          "snippet": {
+            "authorDisplayName": "Commenter One",
+            "authorChannelId": {"value": "UC_top1"},
+            "textDisplay": "Great analysis! #ai",
+            "textOriginal": "Great analysis! #ai",
+            "publishedAt": "2026-09-18T10:00:00Z",
+            "likeCount": 42
+          }
+        }
+      },
+      "replies": {
+        "comments": [
+          {
+            "kind": "youtube#comment",
+            "id": "comment-reply-1",
+            "snippet": {
+              "authorDisplayName": "Replier Two",
+              "authorChannelId": {"value": "UC_reply1"},
+              "textDisplay": "Totally agree @friend",
+              "textOriginal": "Totally agree @friend",
+              "publishedAt": "2026-09-18T10:05:00Z",
+              "likeCount": 3,
+              "parentId": "comment-top-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "youtube#commentThread",
+      "id": "thread-top-2",
+      "snippet": {
+        "videoId": "video-abc",
+        "totalReplyCount": 0,
+        "topLevelComment": {
+          "kind": "youtube#comment",
+          "id": "comment-top-2",
+          "snippet": {
+            "authorDisplayName": "Solo Viewer",
+            "textDisplay": "First!",
+            "textOriginal": "First!",
+            "publishedAt": "2026-09-18T11:00:00Z",
+            "likeCount": 0
+          }
+        }
+      }
+    }
+  ]
+}

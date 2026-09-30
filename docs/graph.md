@@ -28,6 +28,20 @@ Results describe structural interaction patterns in collected data. They are not
 
 No follower network is claimed or constructed because follower-edge availability has not been verified for the configured X access.
 
+## Visual exploration
+
+The React interaction map uses Sigma.js (WebGL) and Graphology. ForceAtlas2
+positions only backend-returned accounts and relationships; its coordinates
+are deterministic for the same API response. The default connected-core view
+keeps up to 90 accounts with observed edges readable. “All loaded” shows all
+accounts returned by the recent-edge API request, not the full database.
+Directional arrows are drawn from source to target. Click or use the
+keyboard-accessible PageRank ranking to select an account; its incoming and
+outgoing stored relationships appear beside the map. Pan, zoom, and reset are
+available. The ranking and relationship detail remain usable when WebGL is
+unavailable. Community colors and node sizes are descriptive, not evidence of
+causal influence.
+
 
 ## Temporal snapshots
 

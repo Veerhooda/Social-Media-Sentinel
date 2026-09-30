@@ -12,14 +12,13 @@ export function EmotionBars({ emotions }: { emotions: Record<string, number> }) 
     <div className="chart chart--bars" aria-label="Emotion distribution chart">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} layout="vertical" margin={{ left: 20, right: 12, top: 0, bottom: 0 }}>
-          <CartesianGrid stroke="#f0f2f5" horizontal={false} />
+          <CartesianGrid stroke="#303234" horizontal={false} />
           <XAxis type="number" domain={[0, 'auto']} hide />
-          <YAxis type="category" dataKey="emotion" width={82} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-          <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Score']} contentStyle={{ borderRadius: 10, borderColor: '#eaecef', fontSize: 12 }} />
-          <Bar dataKey="score" fill="#ff7a00" radius={[0, 5, 5, 0]} barSize={9} />
+          <YAxis type="category" dataKey="emotion" width={88} tick={{ fontSize: 12, fill: '#b4b6b7' }} axisLine={false} tickLine={false} />
+          <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Score']} contentStyle={{ borderRadius: 12, borderColor: '#434547', background: '#1d1f21', color: '#f5f5f2', fontSize: 13 }} />
+          <Bar dataKey="score" fill="#f6de62" radius={[0, 5, 5, 0]} barSize={12} />
         </BarChart>
       </ResponsiveContainer>
     </div>
   )
 }
-

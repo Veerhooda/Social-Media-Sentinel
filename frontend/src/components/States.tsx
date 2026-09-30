@@ -1,6 +1,6 @@
 import { AlertTriangle, Database, WifiOff } from 'lucide-react'
 
-export function LoadingState({ label = 'Loading live analytics…' }: { label?: string }) {
+export function LoadingState({ label = 'Loading analytics…' }: { label?: string }) {
   return (
     <div className="state state--loading" role="status">
       <span className="state__label">{label}</span>

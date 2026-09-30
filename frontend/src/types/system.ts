@@ -11,6 +11,7 @@ export interface HealthResponse {
   database: ComponentHealth
   x_api: ComponentHealth
   telegram_api: ComponentHealth
+  youtube_api: ComponentHealth
   scheduler: ComponentHealth
   analytics: ComponentHealth
   event_count: number

@@ -1,24 +1,23 @@
-import { Activity, GitBranch, MessageSquareText, RadioTower, TrendingUp, UsersRound } from 'lucide-react'
+import { Activity, ArrowUpRight, GitBranch, MessageSquareText, RadioTower, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 import { ActivityHeatmap } from '../charts/ActivityHeatmap'
 import { EmotionBars } from '../charts/EmotionBars'
 import { SentimentChart } from '../charts/SentimentChart'
-import { MetricCard } from '../components/MetricCard'
-import { PageHeader } from '../components/PageHeader'
 import { Panel } from '../components/Panel'
 import { PlatformBadge } from '../components/PlatformBadge'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
 import { StatusBadge } from '../components/StatusBadge'
-import { SystemStateStrip } from '../components/SystemStateStrip'
 import { TimeRangeSelector, type TimeRange } from '../components/TimeRangeSelector'
-import { useOverviewData } from '../hooks/useApiQueries'
+import { useOverviewData, useTopics } from '../hooks/useApiQueries'
 import { NetworkGraph } from '../network/NetworkGraph'
-import { activeUsers, emotionTotals, filterTemporalRange, sentimentShift } from '../utils/dashboard'
-import { formatDateTime, formatNumber, formatPercent, sentenceCase } from '../utils/format'
+import { emotionTotals, filterTemporalRange, sentimentShift } from '../utils/dashboard'
+import { formatDateTime, formatNumber, sentenceCase } from '../utils/format'
+import { Link } from 'react-router-dom'
 
 export function OverviewPage() {
   const [range, setRange] = useState<TimeRange>('24H')
   const [health, jobs, events, enriched, sentiment, emotions, trends, network, graph] = useOverviewData()
+  const topics = useTopics()
   const essential = [health, events, sentiment, trends, network]
   const error = essential.find((query) => query.error)?.error
   if (essential.some((query) => query.isLoading)) return <LoadingState />
@@ -26,44 +25,63 @@ export function OverviewPage() {
 
   const eventItems = events.data?.items ?? []
   const sentimentPoints = filterTemporalRange(sentiment.data?.rolling_1h ?? [], range)
+  const positiveShareChange = sentimentShift(sentimentPoints)
   const emotionData = emotionTotals(filterTemporalRange(emotions.data?.rolling_1h ?? [], range))
   const topicItems = trends.data?.items ?? []
   const latestSentiment = sentimentPoints.at(-1)
   const hasReal = enriched.data?.items.some(({ event }) => !event.source_metadata.replay)
   const hasReplay = enriched.data?.items.some(({ event }) => Boolean(event.source_metadata.replay))
-  const dataMode = hasReal && hasReplay ? 'mixed' : hasReal ? 'live' : 'replay'
+  const dataMode = hasReal && hasReplay ? 'mixed' : hasReal ? 'live' : hasReplay ? 'replay' : 'idle'
   const platformSummary = (platform: string) => health.data?.platforms.find((item) => item.platform === platform)
+  const sourceRows = [
+    { id: 'x', label: 'X / Twitter', health: health.data?.x_api.status },
+    { id: 'telegram', label: 'Telegram', health: health.data?.telegram_api.status },
+    { id: 'youtube', label: 'YouTube', health: health.data?.youtube_api.status },
+  ]
 
   return (
-    <div className="page-stack">
-      <PageHeader
-        title="Overview"
-        subtitle="Current signals from the locally collected X and Telegram dataset."
-        actions={<TimeRangeSelector value={range} onChange={setRange} />}
-      />
-      {health.data && <SystemStateStrip health={health.data} jobs={jobs.data} />}
-      <div className="metric-grid">
-        <MetricCard label="Collected Events" value={formatNumber(health.data?.real_event_count ?? 0)} detail="non-replay X + Telegram events" icon={RadioTower} tone="orange" />
-        <MetricCard label="Active Users" value={formatNumber(activeUsers(eventItems))} detail="in loaded event window" icon={UsersRound} tone="blue" />
-        <MetricCard label="Detected Topics" value={formatNumber(topicItems.length)} detail={trends.data?.temporal_status === 'PASS' ? 'BERTrend measurements' : 'limited temporal evidence'} icon={TrendingUp} tone="purple" />
-        <MetricCard label="Sentiment Shift" value={formatPercent(sentimentShift(sentimentPoints))} detail="positive share vs prior window" change={sentimentShift(sentimentPoints)} icon={MessageSquareText} tone="green" unavailable={sentimentPoints.length < 2} />
-        <MetricCard label="Network Activity" value={formatNumber(network.data?.summary.edges ?? 0)} detail="interaction-derived edges" icon={GitBranch} tone="pink" />
-      </div>
+    <div className="page-stack overview-page">
+      <p className="overview-intro">Public conversation intelligence grounded in stored events and source timestamps.</p>
+      <section className="overview-stage" aria-label="Audience intelligence overview">
+        <div className="overview-stage__headline">
+          <div><span className="overview-kicker">STORED CANONICAL EVENTS</span><strong>{formatNumber(health.data?.event_count ?? 0)}</strong><p>{formatNumber(health.data?.real_event_count ?? 0)} real · {formatNumber(health.data?.replay_event_count ?? 0)} replay</p></div>
+          <div className="overview-stage__comparisons" aria-label="Latest analyzed source-time window">
+            <div><span>Positive</span><strong>{latestSentiment ? `${(latestSentiment.positive_ratio * 100).toFixed(1)}%` : '—'}</strong></div>
+            <div><span>Neutral</span><strong>{latestSentiment ? `${(latestSentiment.neutral_ratio * 100).toFixed(1)}%` : '—'}</strong></div>
+            <div><span>Negative</span><strong>{latestSentiment ? `${(latestSentiment.negative_ratio * 100).toFixed(1)}%` : '—'}</strong></div>
+            <small>Latest analyzed source-time window · {latestSentiment?.event_count ?? 0} events</small>
+          </div>
+        </div>
+        <div className="overview-signals">
+          <Link to="/live-feed" className="overview-signal"><span className="overview-signal__icon"><RadioTower size={18} /></span><span className="overview-signal__name">Collection</span><strong>{formatNumber(health.data?.real_event_count ?? 0)}</strong><small>real stored events</small><ArrowUpRight className="overview-signal__arrow" size={19} /></Link>
+          <Link to="/sentiment" className="overview-signal"><span className="overview-signal__icon"><MessageSquareText size={18} /></span><span className="overview-signal__name">Sentiment</span><strong>{positiveShareChange == null ? '—' : `${positiveShareChange >= 0 ? '+' : ''}${(positiveShareChange * 100).toFixed(1)} pp`}</strong><small>{positiveShareChange == null ? 'Insufficient history' : 'positive share vs prior window'}</small><ArrowUpRight className="overview-signal__arrow" size={19} /></Link>
+          <Link to="/trends" className="overview-signal"><span className="overview-signal__icon"><TrendingUp size={18} /></span><span className="overview-signal__name">Topics</span><strong>{topics.data ? formatNumber(topics.data.items.length) : '—'}</strong><small>persisted BERTrend topics</small><ArrowUpRight className="overview-signal__arrow" size={19} /></Link>
+          <Link to="/network" className="overview-signal"><span className="overview-signal__icon"><GitBranch size={18} /></span><span className="overview-signal__name">Interactions</span><strong>{formatNumber(network.data?.summary.edges ?? 0)}</strong><small>observed graph edges</small><ArrowUpRight className="overview-signal__arrow" size={19} /></Link>
+        </div>
+        <div className="overview-stage__lower">
+          <section className="overview-coverage" aria-label="Platform coverage">
+            <header><h2>Source coverage</h2><span>Stored corpus</span></header>
+            <div className="overview-coverage__rows">{sourceRows.map((source) => {
+              const summary = platformSummary(source.id)
+              return <div className="overview-coverage__row" key={source.id}><span className="overview-coverage__mark">{source.id === 'telegram' ? 'TG' : source.id === 'youtube' ? 'YT' : 'X'}</span><div><strong>{source.label}</strong><small>{source.health === 'PASS' ? 'Configured · not necessarily collecting' : 'Collector unavailable or paused'}</small></div><b>{formatNumber(summary?.real_event_count ?? 0)}</b></div>
+            })}</div>
+            <p>{health.data?.replay_event_count ? `${formatNumber(health.data.replay_event_count)} replay events are reported separately.` : 'No replay events stored.'}</p>
+          </section>
+          <section className="overview-primary-chart" aria-label="Sentiment over source time">
+            <header><div><span className="overview-kicker">CHRONOLOGY</span><h2>Sentiment over time</h2><p>Positive, neutral and negative shares · source-time windows</p></div><TimeRangeSelector value={range} onChange={setRange} /></header>
+            <SentimentChart points={sentimentPoints} />
+            <footer><span>{sentimentPoints.length} measured windows</span><StatusBadge status={dataMode} label={dataMode === 'live' ? 'STORED REAL DATA' : undefined} /></footer>
+          </section>
+        </div>
+      </section>
 
-      <div className="dashboard-grid dashboard-grid--primary">
-        <Panel title="Sentiment Over Time" subtitle={`Source-time analysis · ${range}`} action={<StatusBadge status={dataMode} label={dataMode === 'live' ? 'REAL DATA' : undefined} />} className="span-8">
-          <SentimentChart points={sentimentPoints} />
-        </Panel>
-        <Panel title="Emotion Distribution" subtitle="Latest analyzed window" className="span-4">
-          <EmotionBars emotions={emotionData} />
-        </Panel>
+      <div className="dashboard-grid">
+        <Panel title="Emotion distribution" subtitle="Latest analyzed window · model-estimated scores" className="span-5"><EmotionBars emotions={emotionData} /></Panel>
+        <Panel title="Conversation activity" subtitle={`UTC day and hour · ${eventItems.length} recently loaded events, not the full corpus`} className="span-7"><ActivityHeatmap events={eventItems} /></Panel>
       </div>
 
       <div className="dashboard-grid">
-        <Panel title="Conversation Activity" subtitle="Loaded event volume by UTC day and hour" className="span-8">
-          <ActivityHeatmap events={eventItems} />
-        </Panel>
-        <Panel title="Recent Activity" subtitle="Most recently collected and analyzed events" className="span-4 activity-panel">
+        <Panel title="Recent conversations" subtitle="Most recently collected and analyzed events" className="span-6 activity-panel">
           {enriched.isLoading ? <LoadingState /> : enriched.data?.items.length ? (
             <div className="activity-list">
               {enriched.data.items.slice(0, 6).map(({ event, analysis }) => (
@@ -75,35 +93,24 @@ export function OverviewPage() {
             </div>
           ) : <EmptyState />}
         </Panel>
+        <Panel title="Topic measurements" subtitle={trends.data?.detail ?? `Engine: ${trends.data?.engine}`} className="span-6">
+          {topicItems.length ? <div className="topic-table" role="table" aria-label="Latest topic measurements"><div className="topic-table__head" role="row"><span>Topic</span><span>Volume</span><span>Velocity</span><span>Status</span></div>{topicItems.slice(0, 6).map((topic) => <div className="topic-row" role="row" key={topic.topic_id ?? topic.topic}><div><strong>{topic.topic}</strong><span>{topic.keywords.slice(0, 3).join(' · ')}</span></div><b>{topic.volume}</b><span>{topic.velocity == null ? 'Insufficient' : topic.velocity.toFixed(2)}</span><StatusBadge status={topic.velocity == null ? 'INSUFFICIENT_DATA' : topic.status} label={topic.velocity == null ? 'First observation' : undefined} /></div>)}</div> : <EmptyState title="No persisted topics" detail="The hashtag fallback is used only when explicitly labeled." />}
+        </Panel>
       </div>
 
       <div className="dashboard-grid">
-        <Panel title="Rising Topics & Trend Velocity" subtitle={trends.data?.detail ?? `Engine: ${trends.data?.engine}`} className="span-7">
-          {topicItems.length ? (
-            <div className="topic-table" role="table" aria-label="Current topic rankings">
-              <div className="topic-table__head" role="row"><span>Topic</span><span>Volume</span><span>Velocity</span><span>Status</span></div>
-              {topicItems.slice(0, 6).map((topic) => (
-                <div className="topic-row" role="row" key={topic.topic_id ?? topic.topic}>
-                  <div><strong>{topic.topic}</strong><span>{topic.keywords.slice(0, 3).join(' · ')}</span></div>
-                  <b>{topic.volume}</b>
-                  <span>{topic.velocity == null ? 'Insufficient' : topic.velocity.toFixed(2)}</span>
-                  <StatusBadge status={topic.status} />
-                </div>
-              ))}
-            </div>
-          ) : <EmptyState title="No persisted topics" detail="The hashtag fallback is used only when explicitly labeled." />}
-        </Panel>
-        <Panel title="Influence Network" subtitle="Collected replies, mentions, quotes and reposts" className="span-5 network-panel">
+        <Panel title="Interaction preview" subtitle="Observed relationships, not follower connections" className="span-12 network-panel">
           {graph.data ? <NetworkGraph graph={graph.data} /> : <LoadingState />}
           <div className="network-summary-strip"><span><b>{network.data?.summary.nodes ?? 0}</b> nodes</span><span><b>{network.data?.summary.edges ?? 0}</b> edges</span><span><b>{network.data?.summary.communities ?? 0}</b> communities</span></div>
+          <Link className="panel-link" to="/network">Explore interaction map →</Link>
         </Panel>
       </div>
 
       <Panel title="Data Sources" subtitle="Implementation state and locally stored real data">
         <div className="source-grid">
-          <SourceCard name="X / Twitter" status={platformSummary('x') ? 'LIVE DATA' : 'NO STORED DATA'} detail={health.data?.x_api.status === 'PASS' ? 'Collector configured' : 'Collector currently paused'} summary={platformSummary('x')} />
-          <SourceCard name="Telegram" status={platformSummary('telegram') ? 'LIVE DATA' : 'NO STORED DATA'} detail={health.data?.telegram_api.status === 'PASS' ? 'Authorized session configured' : 'Collector currently paused'} summary={platformSummary('telegram')} />
-          <SourceCard name="YouTube" status="COMING SOON" detail="Comment ingestion is not implemented" />
+          <SourceCard name="X / Twitter" status={platformSummary('x') ? 'STORED DATA' : 'NO STORED DATA'} detail={health.data?.x_api.status === 'PASS' ? 'Collector configured' : 'Collector currently paused'} summary={platformSummary('x')} />
+          <SourceCard name="Telegram" status={platformSummary('telegram') ? 'STORED DATA' : 'NO STORED DATA'} detail={health.data?.telegram_api.status === 'PASS' ? 'Authorized session configured' : 'Collector currently paused'} summary={platformSummary('telegram')} />
+          <SourceCard name="YouTube" status={platformSummary('youtube') ? 'AVAILABLE' : health.data?.youtube_api.status === 'PASS' ? 'CONFIGURED' : 'NOT CONFIGURED'} detail="Polling-based comment ingestion (not a live stream)" summary={platformSummary('youtube')} />
           <SourceCard name="Reddit" status="COMING SOON" detail="Post and comment ingestion is not implemented" />
           <SourceCard name="Meta platforms" status="PLANNED" detail="Instagram and Facebook adapters are inactive" />
         </div>
@@ -116,7 +123,7 @@ export function OverviewPage() {
 function SourceCard({ name, status, detail, summary }: { name: string; status: string; detail: string; summary?: import('../types/system').PlatformDataSummary }) {
   return (
     <article className={`source-card ${summary ? 'source-card--implemented' : 'source-card--planned'}`}>
-      <div className="source-card__top"><strong>{name}</strong><StatusBadge status={summary ? 'live' : 'skipped'} label={status} /></div>
+      <div className="source-card__top"><strong>{name}</strong><StatusBadge status={summary ? 'AVAILABLE' : 'skipped'} label={status} /></div>
       <p>{detail}</p>
       {summary && <span>{formatNumber(summary.real_event_count)} real events</span>}
     </article>

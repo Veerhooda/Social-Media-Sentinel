@@ -12,6 +12,7 @@ it('separates implemented platforms from coming-soon sources', async () => {
     database: { status: 'PASS', detail: 'PostgreSQL reachable' },
     x_api: { status: 'SKIPPED', detail: 'Collector paused' },
     telegram_api: { status: 'PASS', detail: 'Session configured' },
+    youtube_api: { status: 'SKIPPED', detail: 'YOUTUBE_API_KEY is not configured' },
     scheduler: { status: 'SKIPPED', detail: 'Disabled' },
     analytics: { status: 'SKIPPED', detail: 'Disabled' },
     event_count: 303,
@@ -29,8 +30,11 @@ it('separates implemented platforms from coming-soon sources', async () => {
   render(<QueryClientProvider client={client}><MemoryRouter><DataSourcesPage /></MemoryRouter></QueryClientProvider>)
 
   expect(await screen.findByText('Telegram')).toBeInTheDocument()
-  expect(screen.getAllByText('LIVE DATA')).toHaveLength(2)
-  expect(screen.getAllByText('COMING SOON')).toHaveLength(2)
+  expect(screen.getAllByText('STORED DATA')).toHaveLength(2)
+  expect(screen.getAllByText('COMING SOON')).toHaveLength(1)
+  expect(screen.getByText('YouTube')).toBeInTheDocument()
+  expect(screen.getByText('Comment polling (not a live stream)')).toBeInTheDocument()
+  expect(screen.getByText('Adapter implemented; API key not configured.')).toBeInTheDocument()
   expect(screen.getByText('Meta platforms')).toBeInTheDocument()
   expect(screen.queryByText('Never')).not.toBeInTheDocument()
 })

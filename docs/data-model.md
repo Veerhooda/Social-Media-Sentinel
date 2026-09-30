@@ -23,6 +23,15 @@ Migration `0001_x_first` creates:
 - `social_events`
 - `nlp_analysis`
 - `user_demographics` (aggregate signals with provenance: language/geography confidence, inference source, model versions, updated_at; age brackets persist NULL by design until a validated model exists)
+
+YouTube comments reuse this schema unchanged (`platform=youtube`,
+`platform_post_id`=comment ID, `parent_platform_post_id`=parent comment ID,
+`thread_root_id`=top-level comment ID, video ID in `source_metadata`).
+Reply edges target the parent author's channel ID when it is present. When
+YouTube omits that ID, authors receive comment-scoped fallback IDs to avoid
+merging people with the same display name; no reply edge is inferred from a
+name alone. Textual @mentions do not create graph edges without verified IDs.
+No migration was required.
 - `topics`
 - `trend_measurements`
 - `graph_edges`

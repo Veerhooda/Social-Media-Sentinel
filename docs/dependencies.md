@@ -22,10 +22,19 @@ Verified on 2026-09-20 using CPython 3.13.11 on macOS arm64.
 | Vite | 7.3.6 | Frontend build/dev server | PASS |
 | Recharts | 3.10.1 | Analytics charts | PASS |
 | TanStack Query | 5.103.1 | Central query cache/polling | PASS |
+| Sigma.js | 3.0.3 | WebGL interaction map | PASS: desktop/mobile browser rendering and controls |
+| Graphology | 0.26.0 | Directed graph view model | PASS: deterministic graph unit tests |
+| ForceAtlas2 | 0.10.1 | Deterministic graph positioning | PASS: unit and browser checks |
 
 `uv sync --extra dev --extra trend` resolves 307 packages on Python 3.13. BERTrend has a large transitive dependency footprint; both direct and scheduled real-data analysis are verified.
 
 The continuous scheduler uses Python's standard `threading` primitives and adds no Celery, Redis, Kafka, or scheduling dependency.
+
+The 2026-09-23 frontend audit found **0 production-dependency vulnerabilities**
+with `npm audit --omit=dev --audit-level=moderate`. The full development
+dependency audit still reports 2 moderate Vitest/@vitest/mocker advisories;
+the upstream fix requires a major Vitest upgrade and is not part of the UI
+runtime. Do not treat this as a clean full audit.
 
 Model smoke tests executed real inference for:
 

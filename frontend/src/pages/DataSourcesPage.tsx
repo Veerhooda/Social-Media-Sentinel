@@ -7,7 +7,6 @@ import type { ComponentHealth, PlatformDataSummary } from '../types/system'
 import { formatNumber, timeAgo } from '../utils/format'
 
 const plannedSources = [
-  { mark: 'YT', name: 'YouTube', status: 'COMING SOON', detail: 'Comment polling is not implemented.' },
   { mark: 'R', name: 'Reddit', status: 'COMING SOON', detail: 'Post and comment ingestion is not implemented.' },
   { mark: 'M', name: 'Meta platforms', status: 'PLANNED', detail: 'Instagram and Facebook adapters are inactive.' },
 ]
@@ -21,7 +20,7 @@ export function DataSourcesPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader title="Data Sources" subtitle="Implemented collectors, stored real data, and planned integrations." />
+      <PageHeader title="Data sources" subtitle="Configured collectors, historical stored data, and integrations that are not yet active." />
       <Panel title="Implemented" subtitle="Counts and timestamps come from canonical PostgreSQL events">
         <div className="source-list">
           <ImplementedSource
@@ -29,7 +28,7 @@ export function DataSourcesPage() {
             name="X / Twitter"
             mode="Recent Search + Filtered Stream"
             health={health.data!.x_api}
-            description={health.data!.x_api.status === 'PASS' ? 'Client configured; collection runs only when explicitly enabled.' : 'Collector currently paused; stored data remains available.'}
+            description={health.data!.x_api.status === 'PASS' ? 'Client configured; collection runs only when explicitly enabled.' : 'Collector not currently configured or running; historical data remains available.'}
             summary={summary('x')}
             lastRun={xJob?.last_finished_at}
           />
@@ -38,8 +37,16 @@ export function DataSourcesPage() {
             name="Telegram"
             mode="Public history + NewMessage"
             health={health.data!.telegram_api}
-            description={health.data!.telegram_api.status === 'PASS' ? 'Authorized session available; collector currently idle.' : 'Collector currently paused; stored data remains available.'}
+            description={health.data!.telegram_api.status === 'PASS' ? 'Authorized session available; collector currently idle.' : 'Collector not currently configured or running; historical data remains available.'}
             summary={summary('telegram')}
+          />
+          <ImplementedSource
+            mark="YT"
+            name="YouTube"
+            mode="Comment polling (not a live stream)"
+            health={health.data!.youtube_api}
+            description={health.data!.youtube_api.status === 'PASS' ? 'API key configured; collection is manually triggered.' : 'Adapter implemented; API key not configured.'}
+            summary={summary('youtube')}
           />
         </div>
       </Panel>
@@ -89,7 +96,7 @@ function ImplementedSource({
         <div><dt>Latest collected</dt><dd>{timeAgo(summary?.latest_collected_at ?? lastRun)}</dd></div>
         <div><dt>Real events</dt><dd>{summary ? formatNumber(summary.real_event_count) : 'No data'}</dd></div>
       </dl>
-      <StatusBadge status={hasRealData ? 'live' : health.status} label={hasRealData ? 'LIVE DATA' : health.status} />
+      <StatusBadge status={hasRealData ? 'AVAILABLE' : health.status} label={hasRealData ? 'STORED DATA' : health.status === 'PASS' ? 'CONFIGURED' : health.status} />
     </article>
   )
 }

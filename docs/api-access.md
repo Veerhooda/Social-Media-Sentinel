@@ -119,7 +119,7 @@ The React client additionally consumes:
 
 - `GET /api/health` — component health plus per-platform real/replay counts and
   latest source/collection timestamps;
-- `GET /api/events/enriched` — paginated canonical events with optional persisted NLP;
+- `GET /api/events/enriched` — paginated canonical events with optional persisted NLP. Optional `q` (literal case-insensitive text, author or hashtag substring, maximum 200 characters), `platform`, `sentiment`, `emotion`, and `interaction` filters apply in PostgreSQL before pagination; `total` is the filtered count;
 - `GET /api/network/graph` — real, non-replay interaction nodes and edges;
 - `GET /api/system/jobs` — scheduler/job observability;
 - existing health, temporal, trend, topic, and summary endpoints.
@@ -127,3 +127,59 @@ The React client additionally consumes:
 Event endpoints support bounded pagination. Dashboard network endpoints exclude replay edges by default.
 `/api/events`, `/api/events/live`, temporal analytics, and network endpoints accept
 the same canonical platform values, including `telegram`.
+
+## YouTube / Data API v3
+
+YouTube is isolated under `app/platforms/youtube` and uses
+`google-api-python-client` with an API key. The adapter exposes:
+
+- `YouTubeAdapter.collect(...)` for bounded comment retrieval;
+- `YouTubeAdapter.poll_once(...)` for a single scheduler-friendly pass
+  (disabled by default; never runs in demo mode);
+- `YouTubeAdapter.health_check(...)` for configuration or an explicitly
+  requested live check.
+
+Configuration is loaded only from environment settings:
+
+```dotenv
+YOUTUBE_API_KEY=
+YOUTUBE_VIDEO_ID=
+YOUTUBE_MAX_RESULTS=50
+YOUTUBE_MAX_PAGES=2
+YOUTUBE_MAX_API_CALLS=10
+YOUTUBE_POLL_INTERVAL_SECONDS=60
+```
+
+Primary endpoint is `commentThreads.list` (1 quota unit per call);
+`comments.list` (1 unit per call) completes reply lists only when a thread's
+`totalReplyCount` exceeds the inline replies. Pagination uses `pageToken`
+with bounded page, result, and total API-call counts per pass; this command
+does not crawl channels.
+Quota exhaustion is classified as `YouTubeQuotaError`; other 403 access
+failures remain explicit `YouTubeAPIError` results. Neither is hot-retried;
+comments-disabled videos return
+an honest empty result. Google API objects stop at the mapper boundary.
+Malformed comments are rejected individually. If reply completion is
+truncated after five pages, the result records an incomplete thread. A
+request-budget pause returns a checkpoint with the thread/reply position for
+explicit resumption; `exhausted=false` distinguishes a paused pass from an
+exhausted response (both may have a null page token). No background retry or
+polling is started.
+Repository uniqueness on `(platform, platform_post_id)` is the final
+deduplication guard.
+
+YouTube comments are polling-based, never a true push stream, and the UI
+labels them AVAILABLE / polling rather than live. Local deterministic
+mapper/pagination/error tests use fixtures only. On 2026-09-23, a bounded
+live API check against a public test video returned three comments using one
+API call; canonical IDs, source timestamps, separate collection timestamps,
+author IDs, and two reply relationships were validated in memory. This was
+an adapter check, not a PostgreSQL/NLP/API end-to-end verification, and no
+test-video comments were stored. A project video ID is still required for
+the explicit ingestion command.
+
+The adapter reports fetched events and hands them to an explicit callback;
+the shared `EventPipeline` owns PostgreSQL, NLP and graph writes. The bounded
+`scripts/run_youtube_comments.py` command uses this shared pipeline when an
+API key and video ID are explicitly supplied. No YouTube polling job is
+registered in the scheduler.

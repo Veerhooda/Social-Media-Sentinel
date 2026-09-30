@@ -83,3 +83,46 @@ def test_dashboard_network_excludes_replay_edges(repository) -> None:
         graph = client.get("/api/network/graph")
     assert graph.json()["edge_count"] == 1
     assert graph.json()["edges"][0]["source"] == "x:live-source"
+
+
+def test_enriched_feed_filters_entire_corpus_before_pagination(repository, fake_nlp_service) -> None:
+    for index, (platform, text_value, username, interaction) in enumerate([
+        ("x", "A current unrelated post", "first", "post"),
+        ("telegram", "Open Research bulletin", "analyst", "post"),
+        ("x", "A reply about open research", "third", "reply"),
+        ("x", "Another unrelated post", "fourth", "post"),
+    ]):
+        event = CanonicalEvent(
+            platform=platform,
+            platform_post_id=f"feed-{index}",
+            interaction_type=interaction,
+            created_at=datetime(2026, 9, 20, 12, index, tzinfo=UTC),
+            author=AuthorInfo(platform_user_id=f"author-{index}", username=username),
+            content=ContentInfo(text=text_value, hashtags=["OpenData"] if index == 1 else []),
+            source_metadata={"replay": False},
+        )
+        repository.insert_event(event)
+        repository.upsert_nlp_result(event.event_id, fake_nlp_service.analyze(event))
+
+    app = create_app()
+    app.dependency_overrides[get_repository] = lambda: repository
+    with TestClient(app) as client:
+        first = client.get("/api/events/enriched", params={"q": "research", "limit": 1})
+        second = client.get("/api/events/enriched", params={"q": "research", "limit": 1, "offset": 1})
+        combined = client.get("/api/events/enriched", params={
+            "platform": "x", "sentiment": "positive", "emotion": "excitement", "interaction": "reply",
+        })
+        by_author = client.get("/api/events/enriched", params={"q": "analyst"})
+        by_tag = client.get("/api/events/enriched", params={"q": "opendata"})
+        literal = client.get("/api/events/enriched", params={"q": "%"})
+        too_long = client.get("/api/events/enriched", params={"q": "x" * 201})
+
+    assert first.status_code == second.status_code == combined.status_code == 200
+    assert first.json()["total"] == second.json()["total"] == 2
+    assert [first.json()["items"][0]["event"]["platform_post_id"], second.json()["items"][0]["event"]["platform_post_id"]] == ["feed-2", "feed-1"]
+    assert combined.json()["total"] == 1
+    assert combined.json()["items"][0]["event"]["platform_post_id"] == "feed-2"
+    assert by_author.json()["items"][0]["event"]["platform_post_id"] == "feed-1"
+    assert by_tag.json()["items"][0]["event"]["platform_post_id"] == "feed-1"
+    assert literal.json()["total"] == 0
+    assert too_long.status_code == 422

@@ -1,6 +1,7 @@
-import { queryOptions, useQueries, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions, useQueries, useQuery } from '@tanstack/react-query'
 import { getDemographics, getEmotions, getSentiment, getTopics, getTrends } from '../api/analytics'
 import { getEnrichedEvents, getEvents, getLiveEvents } from '../api/events'
+import type { EventQuery } from '../api/events'
 import {
   getNetworkCascade,
   getNetworkCascades,
@@ -20,7 +21,7 @@ export const queryKeys = {
   health: ['health'] as const,
   jobs: ['jobs'] as const,
   events: (offset = 0) => ['events', offset] as const,
-  enrichedEvents: (offset = 0, platform = 'all') => ['events', 'enriched', platform, offset] as const,
+  enrichedEvents: (query: EventQuery = {}) => ['events', 'enriched', query] as const,
   liveEvents: ['events', 'live'] as const,
   sentiment: ['analytics', 'sentiment'] as const,
   emotions: ['analytics', 'emotions'] as const,
@@ -59,7 +60,7 @@ export function useOverviewData() {
         refetchInterval: POLL_INTERVAL,
       }),
       queryOptions({
-        queryKey: queryKeys.enrichedEvents(0),
+        queryKey: queryKeys.enrichedEvents({ limit: 12, newest_first: true }),
         queryFn: () => getEnrichedEvents({ limit: 12, newest_first: true }),
         refetchInterval: LIVE_POLL_INTERVAL,
       }),
@@ -72,10 +73,11 @@ export function useOverviewData() {
   })
 }
 
-export const useEnrichedEvents = (offset = 0, platform = 'all') =>
+export const useEnrichedEvents = (query: EventQuery = {}) =>
   useQuery({
-    queryKey: queryKeys.enrichedEvents(offset, platform),
-    queryFn: () => getEnrichedEvents({ limit: 50, offset, newest_first: true, platform: platform === 'all' ? undefined : platform }),
+    queryKey: queryKeys.enrichedEvents(query),
+    queryFn: () => getEnrichedEvents({ limit: 50, newest_first: true, ...query }),
+    placeholderData: keepPreviousData,
     refetchInterval: LIVE_POLL_INTERVAL,
   })
 
@@ -108,7 +110,7 @@ export function useTimelineData() {
   return useQueries({
     queries: [
       queryOptions({
-        queryKey: queryKeys.enrichedEvents(0),
+        queryKey: queryKeys.enrichedEvents({ limit: 50, newest_first: true }),
         queryFn: () => getEnrichedEvents({ limit: 50, newest_first: true }),
         refetchInterval: LIVE_POLL_INTERVAL,
       }),

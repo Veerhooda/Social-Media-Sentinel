@@ -35,6 +35,7 @@ describe('shared states and metrics', () => {
       database: { status: 'PASS', detail: 'PostgreSQL reachable' },
       x_api: { status: 'SKIPPED', detail: 'Collector paused' },
       telegram_api: { status: 'PASS', detail: 'Session configured' },
+      youtube_api: { status: 'SKIPPED', detail: 'YOUTUBE_API_KEY is not configured' },
       scheduler: { status: 'SKIPPED', detail: 'Disabled' },
       analytics: { status: 'SKIPPED', detail: 'Disabled' },
       event_count: 303,

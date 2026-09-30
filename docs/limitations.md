@@ -54,12 +54,18 @@ Replay records are synthetic, contain no real users or private data, and are mar
 
 The canonical React dashboard is implemented. Current limitations:
 
+- The public landing page uses illustrative product previews and a scroll-reactive rose photograph, not live analytical values. It is a gateway to `/dashboard`, not a data dashboard itself. The rose reveal uses one still image and CSS transforms rather than the reference site's proprietary image sequence or 3D asset.
+
 - events do not persist per-event BERTrend topic assignments, so the Live Feed topic filter is explicitly unavailable;
 - network visualization excludes replay and uses interaction-derived IDs, not follower relationships;
 - frontend refresh uses polling rather than WebSocket/SSE;
-- `LIVE DATA` denotes real, non-replay rows already stored for a platform; active
+- `STORED DATA` denotes real, non-replay rows already stored for a platform; active
   collector state is reported separately and is not inferred from stored rows;
 - npm reports two moderate development-tooling advisories; the production dependency audit reports zero vulnerabilities, and no breaking forced upgrade was applied;
 - chart-library route chunks remain comparatively large;
 - demographics are exposed as an aggregate-only navigation destination with unknown/insufficient-data states; the Settings UI
   remains intentionally unavailable.
+
+- YouTube: polling only (configurable 10s+ interval), with no automatic polling job; list calls consume quota. Each explicit collection pass is capped by `YOUTUBE_MAX_API_CALLS` (default 10) and returns a resumable checkpoint when it pauses. Reply lists require `comments.list` when inline replies are incomplete; completion is capped at five pages per pass and marked incomplete when more remain. Missing author channel IDs use comment-scoped identities, so no identity or reply edge is inferred from a display name. Comments-disabled videos yield empty results. A bounded live adapter request succeeded on 2026-09-23, but live persistence and downstream analytics remain unverified until a project video ID is configured; no channel crawling or media downloads are performed.
+- Dashboard: network visualization depends on WebGL for the canvas; the ranked account list and relationship detail remain accessible without it. The graph API supplies a bounded recent-edge sample, so map counts may differ from all-time network summary counts. Overview activity and author counts are based on recently loaded events, while the persisted topic count uses the topics endpoint. Event-feed text/NLP filters search the stored corpus before pagination; literal substring search is backed by simple `ILIKE` conditions and may need a dedicated search index for a much larger database. Per-event topic filtering remains unavailable. Browser-level mobile and desktop checks were run locally, but a full assistive-technology audit remains outstanding.
+- The dark/yellow design migration was inspected at 1440px desktop and 390px mobile on the overview and feed, plus desktop network, trends, sentiment, demographics and data sources. It does not constitute a full assistive-technology or contrast audit of every chart and route. Overview time presets filter the available rolling sentiment points; sparse windows can legitimately yield insufficient history rather than a drawn trend.

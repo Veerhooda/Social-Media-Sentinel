@@ -1,5 +1,7 @@
 from datetime import UTC, datetime
 
+import networkx as nx
+
 from app.graph.builder import GraphBuilder
 from app.graph.metrics import calculate_network_metrics
 from app.models.events import AuthorInfo, CanonicalEvent, ContentInfo, RelationshipInfo
@@ -67,3 +69,16 @@ def test_telegram_reply_and_forward_use_existing_graph_semantics() -> None:
     assert by_type["reply"].weight == 0.8
     assert by_type["forward"].target_platform_user_id == "source-channel"
     assert by_type["forward"].weight == 1.0
+
+
+def test_betweenness_treats_interaction_weights_as_strength() -> None:
+    graph = nx.DiGraph()
+    graph.add_edge("a", "b", weight=5.0)
+    graph.add_edge("b", "c", weight=5.0)
+    graph.add_edge("a", "c", weight=1.0)
+
+    summary = calculate_network_metrics(graph)
+    middle = next(item for item in summary.metrics if item.node_id == "b")
+
+    assert middle.betweenness_centrality > 0
+    assert graph["a"]["b"]["distance"] == 0.2

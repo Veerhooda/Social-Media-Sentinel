@@ -15,7 +15,8 @@ Statuses: COMPLETE, PARTIAL, UNAVAILABLE, NOT IMPLEMENTED.
 | Relationships | Parent/thread references persisted | `/api/network/*` | Network Analysis | COMPLETE | Some parents never collected |
 | Continuous operation | In-process scheduler, 4 jobs, checkpoints | `/api/system/jobs` | Collection Status | PARTIAL | Process-local, no soak test, one owner process |
 | Instagram/Facebook | None | None | PLANNED badge | NOT IMPLEMENTED | Needs accounts/permissions |
-| Reddit/YouTube | None | None | COMING SOON badge | NOT IMPLEMENTED | Needs API setup |
+| YouTube comments | Bounded Data API adapter, local fixture integration | `/api/events?platform=youtube` | Live Feed, Data Sources | PARTIAL | Live API unverified; polling must be invoked explicitly |
+| Reddit | None | None | COMING SOON badge | NOT IMPLEMENTED | Needs API setup |
 
 ## B. Multi-Dimensional Sentiment Inference
 
