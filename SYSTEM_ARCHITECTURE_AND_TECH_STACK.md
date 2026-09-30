@@ -1,9 +1,12 @@
 # Social Sentinel: Full System Architecture & Tech Stack
 
-> **Project Name:** Social Sentinel (AI-Driven Social Media Analytics Framework)  
-> **Status:** Production-Grade Architecture & Verified Implementation  
-> **Target Runtime:** Python 3.13 (CPython 3.13.11) | Node.js 22 (v22.22.0)  
-> **Specification Version:** 1.0 (Post-Milestones Audit)  
+> **Project Name:** Social Sentinel (AI-Driven Social Media Analytics Framework)
+>
+> **Status:** Working prototype; verification scope and limitations are recorded in `docs/limitations.md`.
+>
+> **Target Runtime:** Python 3.13 (CPython 3.13.11) | Node.js 22 (v22.22.0)
+>
+> **Specification Version:** 1.0 (Post-Milestones Audit)
 
 ---
 
