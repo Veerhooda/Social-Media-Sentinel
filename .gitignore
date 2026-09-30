@@ -29,3 +29,9 @@ node_modules/
 output/playwright/
 # Local recordings, presentation exports, API snapshots, and generated media.
 output/
+
+# Local build instructions and presentation working notes.
+/AGENTS.md
+/builder_prompt.md
+/SYSTEM_ARCHITECTURE_AND_TECH_STACK.md
+/docs/prototype-video.md

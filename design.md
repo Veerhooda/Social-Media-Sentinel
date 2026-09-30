@@ -8,7 +8,7 @@ The public `/` route is a distinct editorial hero page inspired by Dialedweb's f
 
 The user-supplied `Crypto Dashboard.png` is the visual reference. Follow its design language closely: an almost-black page, a quiet left rail, a generous charcoal workspace, black inset cards, a warm yellow focal color, rounded geometry, and high-contrast analytical charts. Translate the composition into Social Sentinel's purpose. Do not copy crypto metrics, labels, logos, avatars, wallet actions, or decorative fake data.
 
-For technical capability and truthful claims, `SPECS.md` and `AGENTS.md` remain authoritative. Existing API responses and tests determine what can be displayed today. A design mockup may show an intended future state, but the working app must label unavailable or insufficient evidence explicitly.
+For technical capability and truthful claims, consult `SPECS.md` and `docs/limitations.md`. Existing API responses and tests determine what can be displayed today. A design mockup may show an intended future state, but the working app must label unavailable or insufficient evidence explicitly.
 
 The implementation target is a fluent analyst workspace: one dominant analytical question per screen, a short path from signal to evidence, and no ornamental controls that do nothing.
 
