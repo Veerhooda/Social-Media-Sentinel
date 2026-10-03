@@ -33,7 +33,7 @@ export function emotionTotals(points: TemporalPoint[]): Record<string, number> {
     Object.entries(latest.emotion_distribution)
       .filter(([label]) => label !== 'nervousness')
       .sort(([, left], [, right]) => right - left)
-      .slice(0, 8),
+      .slice(0, 9),
   )
 }
 
@@ -77,4 +77,42 @@ export function filterEnrichedEvents(items: EnrichedEvent[], filters: EventFilte
       (filters.interaction === 'all' || event.interaction_type === filters.interaction)
     )
   })
+}
+
+export type SeriesRange = '24h' | '7d' | '30d' | 'all'
+export const SERIES_RANGES: { value: SeriesRange; label: string }[] = [
+  { value: '24h', label: '24h' },
+  { value: '7d', label: '7d' },
+  { value: '30d', label: '30d' },
+  { value: 'all', label: 'All' },
+]
+
+/**
+ * Picks the measured windows for a range, ending at the newest analysed window
+ * (not "now": collection can be historical). Hourly rolling windows for 24h,
+ * daily windows beyond that.
+ */
+export function selectSeries(series: { rolling_1h: TemporalPoint[]; daily: TemporalPoint[] } | undefined, range: SeriesRange) {
+  if (!series) return []
+  if (range === '24h') return filterTemporalRange(series.rolling_1h, '24H')
+  if (range === 'all') return series.daily
+  const days = range === '7d' ? 7 : 30
+  const end = series.daily.at(-1) ? new Date(series.daily.at(-1)!.window_end).getTime() : 0
+  return series.daily.filter((point) => new Date(point.window_end).getTime() > end - days * 86_400_000)
+}
+
+/** Status shown for a topic. A topic with a single measurement has no direction yet. */
+export function topicState(topic: { velocity: number | null; status: string }) {
+  return topic.velocity == null ? { status: 'first_observation', label: 'First seen' } : { status: topic.status, label: topic.status.charAt(0).toUpperCase() + topic.status.slice(1) }
+}
+
+/** Emotion scores for display: GoEmotions "neutral" is reported separately because it dwarfs the rest. */
+export function splitNeutralEmotion(scores: Record<string, number>) {
+  const { neutral, ...rest } = scores
+  return { neutral: neutral ?? null, emotions: rest }
+}
+
+/** First range (shortest first) that has at least two measured windows, so charts are never empty by default. */
+export function bestRange(series: { rolling_1h: TemporalPoint[]; daily: TemporalPoint[] } | undefined, preferred: SeriesRange[] = ['24h', '7d', '30d', 'all']): SeriesRange {
+  return preferred.find((range) => selectSeries(series, range).length >= 2) ?? 'all'
 }

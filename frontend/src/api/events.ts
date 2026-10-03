@@ -1,5 +1,6 @@
 import { apiRequest, queryString } from './client'
 import type {
+  EnrichedEvent,
   EnrichedEventListResponse,
   EventListResponse,
   LiveEventsResponse,
@@ -22,6 +23,9 @@ export const getEvents = (query: EventQuery = {}) =>
 
 export const getEnrichedEvents = (query: EventQuery = {}) =>
   apiRequest<EnrichedEventListResponse>(`/events/enriched${queryString(query)}`)
+
+export const getEnrichedEvent = (eventId: string) =>
+  apiRequest<EnrichedEvent>(`/events/${encodeURIComponent(eventId)}/enriched`)
 
 export const getLiveEvents = (limit = 25) =>
   apiRequest<LiveEventsResponse>(`/events/live${queryString({ limit })}`)

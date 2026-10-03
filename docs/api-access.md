@@ -120,8 +120,14 @@ The React client additionally consumes:
 - `GET /api/health` — component health plus per-platform real/replay counts and
   latest source/collection timestamps;
 - `GET /api/events/enriched` — paginated canonical events with optional persisted NLP. Optional `q` (literal case-insensitive text, author or hashtag substring, maximum 200 characters), `platform`, `sentiment`, `emotion`, and `interaction` filters apply in PostgreSQL before pagination; `total` is the filtered count;
+- `GET /api/events/{event_id}/enriched` — one event with its NLP result (deep links from other pages);
 - `GET /api/network/graph` — real, non-replay interaction nodes and edges;
-- `GET /api/system/jobs` — scheduler/job observability;
+- `GET /api/system/jobs` — scheduler/job observability; `POST /api/system/jobs/{name}/run` runs one job now
+  (works when the scheduler is disabled);
+- `GET /api/sources` — per-platform credential state, poll interval and configured sources with last-run
+  results; `POST /api/sources` `{platform, target, label?}` adds one (YouTube URLs/IDs, Telegram `@handle` or
+  `t.me` links are normalised), `PATCH /api/sources/{id}` `{enabled?, label?}`, `DELETE /api/sources/{id}`.
+  Sources listed in `.env` (`TELEGRAM_CHANNELS`, `YOUTUBE_VIDEO_IDS`) are seeded on first use;
 - existing health, temporal, trend, topic, and summary endpoints.
 
 Event endpoints support bounded pagination. Dashboard network endpoints exclude replay edges by default.

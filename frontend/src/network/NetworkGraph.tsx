@@ -45,10 +45,10 @@ export function NetworkGraph({ graph, onSelect, selected = null, focusedCommunit
         nodeProgramClasses: { image: imageRendering.NodeImageProgram },
         edgeProgramClasses: { arrow: rendering.EdgeArrowProgram },
         defaultEdgeType: 'arrow',
-        labelFont: 'Inter, system-ui, sans-serif',
-        labelSize: 13,
-        labelWeight: '600',
-        labelColor: { color: '#f5f5f2' },
+        labelFont: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        labelSize: 12,
+        labelWeight: '500',
+        labelColor: { color: '#d7d9dc' },
         labelDensity: 0.6,
         labelRenderedSizeThreshold: 11,
         stagePadding: 38,
@@ -72,7 +72,7 @@ export function NetworkGraph({ graph, onSelect, selected = null, focusedCommunit
           }
           if (!current) return data
           const connected = visualGraph.extremities(edge).includes(current)
-          return connected ? { ...data, color: '#f6de62', size: 2 } : { ...data, hidden: true }
+          return connected ? { ...data, color: '#e9c46a', size: 2 } : { ...data, hidden: true }
         },
       })
       sigma.current = renderer
@@ -86,7 +86,7 @@ export function NetworkGraph({ graph, onSelect, selected = null, focusedCommunit
     return () => { disposed = true; renderer?.kill(); sigma.current = null }
   }, [visualGraph])
 
-  if (!graph.nodes.length) return <EmptyState title="No interaction network" detail="Edges appear after replies, mentions, quotes, or reposts are collected." />
+  if (!graph.nodes.length) return <EmptyState title="No interactions yet" detail="Links appear once replies, mentions, quotes or forwards are collected." />
 
   const zoom = (factor: number) => {
     const camera = sigma.current?.getCamera()
@@ -94,26 +94,27 @@ export function NetworkGraph({ graph, onSelect, selected = null, focusedCommunit
   }
 
   return (
-    <div className="network-canvas" id="audience-network-map">
-      <div className="network-canvas__caption">
-        <strong>Interaction map</strong>
-        <span>{visible.node_count} of {graph.node_count} accounts in loaded graph · {visible.edge_count} visible relationships</span>
+    <div className="graph" id="audience-network-map">
+      <div className="graph__top">
+        <span className="faint num">{visible.node_count} of {graph.node_count} accounts · {visible.edge_count} links</span>
+        {focusedCommunity === null && (
+          <div className="segmented" role="group" aria-label="Network detail">
+            <button type="button" aria-pressed={view === 'core'} onClick={() => setView('core')}>Connected core</button>
+            <button type="button" aria-pressed={view === 'all'} onClick={() => setView('all')}>All loaded</button>
+          </div>
+        )}
       </div>
-      {focusedCommunity === null && <div className="network-view-switch" role="group" aria-label="Network detail">
-        <button type="button" className={view === 'core' ? 'is-active' : ''} aria-pressed={view === 'core'} onClick={() => setView('core')}>Connected core</button>
-        <button type="button" className={view === 'all' ? 'is-active' : ''} aria-pressed={view === 'all'} onClick={() => setView('all')}>All loaded</button>
-      </div>}
-      <div className="network-controls" role="group" aria-label="Network view controls">
-        <button type="button" onClick={() => zoom(0.72)} aria-label="Zoom in"><Plus size={18} /></button>
-        <button type="button" onClick={() => zoom(1.38)} aria-label="Zoom out"><Minus size={18} /></button>
-        <button type="button" onClick={() => sigma.current?.getCamera().animatedReset({ duration: 220 })} aria-label="Reset network view"><Maximize2 size={17} /></button>
+      <div className="graph__controls" role="group" aria-label="Zoom">
+        <button type="button" className="btn btn--icon btn--sm" onClick={() => zoom(0.72)} aria-label="Zoom in"><Plus size={14} /></button>
+        <button type="button" className="btn btn--icon btn--sm" onClick={() => zoom(1.38)} aria-label="Zoom out"><Minus size={14} /></button>
+        <button type="button" className="btn btn--icon btn--sm" onClick={() => sigma.current?.getCamera().animatedReset({ duration: 220 })} aria-label="Reset view"><Maximize2 size={13} /></button>
       </div>
-      <div ref={container} className="network-canvas__renderer" role="img" aria-label="Directed interaction network. Use the ranked list to select accounts with a keyboard." />
-      {!visible.edges.length && <p className="network-canvas__notice">No verified relationships in this selection.</p>}
-      <div className="network-canvas__footer">
-        <span>Recent-edge sample · drag to pan · scroll to zoom · select an account</span>
-        {focusedCommunity !== null && <span>Community {focusedCommunity} isolated · select it again below to clear</span>}
-        {selected && <button type="button" onClick={() => onSelect?.(null)}>Clear {shortNodeLabel(selected)} selection</button>}
+      <div ref={container} className="graph__canvas" role="img" aria-label="Directed interaction network. Use the ranked list to select accounts with a keyboard." />
+      {!visible.edges.length && <p className="graph__notice">No links in this selection.</p>}
+      <div className="graph__bottom faint">
+        <span>Drag to pan, scroll to zoom, click an account</span>
+        {focusedCommunity !== null && <span>Showing community {focusedCommunity}</span>}
+        {selected && <button type="button" className="btn btn--ghost btn--sm" onClick={() => onSelect?.(null)}>Clear {shortNodeLabel(selected)}</button>}
       </div>
     </div>
   )

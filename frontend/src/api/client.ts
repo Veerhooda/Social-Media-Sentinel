@@ -21,13 +21,15 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   if (!response.ok) {
     let detail = `${response.status} ${response.statusText}`
     try {
-      const body = (await response.json()) as { detail?: string }
-      detail = body.detail ?? detail
+      const body = (await response.json()) as { detail?: string | { msg?: string }[] }
+      if (typeof body.detail === 'string') detail = body.detail
+      else if (Array.isArray(body.detail)) detail = body.detail.map((item) => (item.msg ?? '').replace(/^Value error, /, '')).filter(Boolean).join('; ') || detail
     } catch {
       // Keep the HTTP status when a response has no JSON body.
     }
     throw new ApiError(detail, response.status)
   }
+  if (response.status === 204) return null as T
   return (await response.json()) as T
 }
 

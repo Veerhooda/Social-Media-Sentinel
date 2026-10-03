@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     telegram_api_id: int | None = None
     telegram_api_hash: str | None = None
     telegram_session_string: str | None = None
+    telegram_channels: str = ""
+    telegram_poll_interval_seconds: int = Field(default=120, ge=10)
+    telegram_max_messages_per_poll: int = Field(default=100, ge=1, le=1000)
 
     x_bearer_token: str | None = None
     x_client_id: str | None = None
@@ -36,6 +39,7 @@ class Settings(BaseSettings):
 
     youtube_api_key: str | None = None
     youtube_video_id: str = ""
+    youtube_video_ids: str = ""
     youtube_max_results: int = Field(default=50, ge=1, le=500)
     youtube_max_pages: int = Field(default=2, ge=1, le=20)
     youtube_max_api_calls: int = Field(default=10, ge=1, le=100)
@@ -44,6 +48,8 @@ class Settings(BaseSettings):
     nlp_batch_size: int = Field(default=16, ge=1, le=128)
     nlp_model_download_enabled: bool = False
     nlp_processing_interval_seconds: int = Field(default=30, ge=1)
+    demographics_interval_seconds: int = Field(default=600, ge=10)
+    audience_sync_interval_seconds: int = Field(default=900, ge=10)
     graph_interval_seconds: int = Field(default=300, ge=1)
     trend_interval_seconds: int = Field(default=900, ge=1)
     trend_window_minutes: int = Field(default=15, ge=1, le=1440)
@@ -58,6 +64,17 @@ class Settings(BaseSettings):
     scheduler_tick_seconds: float = Field(default=1.0, gt=0, le=60)
     analytics_job_batch_size: int = Field(default=100, ge=1, le=10_000)
     analytics_include_replay: bool = False
+
+    @property
+    def telegram_channel_list(self) -> list[str]:
+        return [item.strip() for item in self.telegram_channels.split(",") if item.strip()]
+
+    @property
+    def youtube_video_list(self) -> list[str]:
+        items = [item.strip() for item in self.youtube_video_ids.split(",") if item.strip()]
+        if self.youtube_video_id.strip() and self.youtube_video_id.strip() not in items:
+            items.insert(0, self.youtube_video_id.strip())
+        return items
 
     @field_validator("telegram_api_id", mode="before")
     @classmethod

@@ -1,71 +1,49 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { screen, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
+import { health, jobs, point, stubApi } from '../test/fetch'
+import { renderPage } from '../test/render'
 import { OverviewPage } from './OverviewPage'
 
 afterEach(() => vi.unstubAllGlobals())
 
-function renderWithHealth(platforms: unknown[]) {
-  const health = {
-    status: 'PASS',
-    database: { status: 'PASS', detail: 'PostgreSQL reachable' },
-    x_api: { status: 'SKIPPED', detail: 'Collector paused' },
-    telegram_api: { status: 'SKIPPED', detail: 'Collector paused' },
-    youtube_api: { status: 'SKIPPED', detail: 'YOUTUBE_API_KEY is not configured' },
-    scheduler: { status: 'SKIPPED', detail: 'Disabled' },
-    analytics: { status: 'SKIPPED', detail: 'Disabled' },
-    event_count: 1,
-    real_event_count: 1,
-    replay_event_count: 0,
-    updated_at: '2026-09-21T00:00:00Z',
-    platforms,
-  }
-  const emptyList = { items: [], count: 0, total: 0, offset: 0, limit: 1 }
-  const emptySeries = { rolling_1h: [], daily: [] }
-  const emptyTrends = { status: 'SKIPPED', temporal_status: 'INSUFFICIENT_DATA', engine: 'none', fallback: false, items: [], detail: null }
-  const emptyNetwork = { summary: { nodes: 0, edges: 0, density: 0, communities: 0, metrics: [], interpretation: '' } }
-  const emptyGraph = { nodes: [], edges: [], node_count: 0, edge_count: 0 }
-  const jobs = { enabled: false, running: false, started_at: null, stopped_at: null, jobs: [] }
-  vi.stubGlobal(
-    'fetch',
-    vi.fn((input: RequestInfo | URL) => {
-      const url = String(input)
-      const body = url.includes('/health')
-        ? health
-        : url.includes('/system/jobs')
-          ? jobs
-        : url.includes('/events')
-            ? emptyList
-            : url.includes('/analytics/topics')
-              ? { status: 'PASS', engine: 'BERTrend', items: [], detail: null }
-            : url.includes('/analytics/sentiment') || url.includes('/analytics/emotions')
-              ? emptySeries
-              : url.includes('/analytics/trends')
-                ? emptyTrends
-                : url.includes('/network/graph')
-                  ? emptyGraph
-                  : emptyNetwork
-      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
-    }),
-  )
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/dashboard']}>
-        <OverviewPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  )
+const sources = {
+  scheduler_enabled: true,
+  scheduler_running: true,
+  platforms: [
+    { platform: 'x', credentials_configured: false, credential_detail: 'X_BEARER_TOKEN is not set in .env', job_name: 'x_recent_search', interval_seconds: 60, sources: [] },
+    { platform: 'telegram', credentials_configured: true, credential_detail: 'ok', job_name: 'telegram_collection', interval_seconds: 120, sources: [{ source_id: '1', platform: 'telegram', target: 'durov', label: null, enabled: true, last_run_at: null, last_status: null, last_detail: null, last_fetched: 0, last_stored: 0, total_stored: 0, created_at: null }] },
+    { platform: 'youtube', credentials_configured: true, credential_detail: 'ok', job_name: 'youtube_collection', interval_seconds: 60, sources: [] },
+  ],
 }
 
-it('shows live badges only for platforms with stored data', async () => {
-  renderWithHealth([
-    { platform: 'x', event_count: 1, real_event_count: 1, replay_event_count: 0, latest_created_at: null, latest_collected_at: '2026-09-20T18:00:00Z' },
+it('summarises stored data and shows each collector state from the API', async () => {
+  stubApi([
+    ['/health', health([
+      { platform: 'x', event_count: 300, real_event_count: 296, replay_event_count: 4, latest_created_at: null, latest_collected_at: '2026-09-20T18:00:00Z' },
+      { platform: 'telegram', event_count: 150, real_event_count: 150, replay_event_count: 0, latest_created_at: null, latest_collected_at: '2026-10-03T10:00:00Z' },
+    ])],
+    ['/system/jobs', jobs()],
+    ['/sources', sources],
+    ['/events', { items: [], count: 0, total: 0, offset: 0, limit: 1 }],
+    ['/analytics/sentiment', { rolling_1h: [point('2026-10-03T09:00:00Z', 0.4, 0.2), point('2026-10-03T10:00:00Z', 0.5, 0.25)], daily: [] }],
+    ['/analytics/emotions', { rolling_1h: [point('2026-10-03T10:00:00Z', 0.5, 0.25)], daily: [] }],
+    ['/analytics/topics', { status: 'PASS', engine: 'BERTrend', items: [], detail: null }],
+    ['/analytics/trends', { status: 'PASS', temporal_status: 'PASS', engine: 'BERTrend', fallback: false, items: [], detail: null }],
+    ['/network/graph', { nodes: [], edges: [], node_count: 0, edge_count: 0 }],
+    ['/network/summary', { summary: { nodes: 5, edges: 7, density: 0.1, communities: 2, metrics: [], interpretation: '' } }],
   ])
-  expect(await screen.findByText('Data Sources')).toBeInTheDocument()
-  expect(screen.getByText('STORED DATA')).toBeInTheDocument()
-  expect(screen.getByText('NO STORED DATA')).toBeInTheDocument()
-  expect(screen.getByText('NOT CONFIGURED')).toBeInTheDocument()
-  expect(screen.getAllByText('YouTube').length).toBeGreaterThan(0)
+  renderPage(<OverviewPage />, '/dashboard')
+
+  expect(await screen.findByRole('heading', { name: 'Overview' })).toBeInTheDocument()
+  expect(screen.getByText('446')).toBeInTheDocument()
+  expect(screen.getByText('4 replay kept separate')).toBeInTheDocument()
+  // latest positive share and its change vs the previous window
+  expect(screen.getByText('50.0')).toBeInTheDocument()
+  expect(screen.getByText('+10.0 pp')).toBeInTheDocument()
+
+  const sourcesPanel = (await screen.findByText('Sources')).closest('section')!
+  expect(within(sourcesPanel).getByText('No credentials')).toBeInTheDocument()
+  expect(within(sourcesPanel).getByText('Every 2m')).toBeInTheDocument()
+  expect(within(sourcesPanel).getByText('No sources')).toBeInTheDocument()
+  expect(within(sourcesPanel).getByText('296')).toBeInTheDocument()
 })

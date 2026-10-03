@@ -1,11 +1,12 @@
-import { GitBranch, Network, Orbit, UsersRound } from 'lucide-react'
+import { ExternalLink, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { MetricCard } from '../components/MetricCard'
 import { AccountAvatar } from '../components/AccountAvatar'
 import { PageHeader } from '../components/PageHeader'
 import { Panel } from '../components/Panel'
+import { platformLabel } from '../utils/platform'
+import { Segmented } from '../components/Segmented'
+import { Stat, Stats } from '../components/Stat'
 import { EmptyState, ErrorState, LoadingState } from '../components/States'
-import { StatusBadge } from '../components/StatusBadge'
 import {
   useNetwork,
   useNetworkCascade,
@@ -15,167 +16,197 @@ import {
   useNetworkTemporal,
 } from '../hooks/useApiQueries'
 import { NetworkGraph } from '../network/NetworkGraph'
-import { formatDateTime, formatDuration, formatNumber } from '../utils/format'
-import { communityColor, nodeLabel, profileLink } from '../utils/network'
+import { formatDuration, formatNumber, formatShortTime, sentenceCase } from '../utils/format'
+import { communityColor, nodeLabel, profileLink, shortNodeLabel } from '../utils/network'
 
 const WINDOWS = ['15m', '1h', '6h', '24h'] as const
 
 export function NetworkPage() {
   const [summary, graph] = useNetwork()
   const [selected, setSelected] = useState<string | null>(null)
-  const [focusedCommunity, setFocusedCommunity] = useState<number | null>(null)
-  const [window, setWindow] = useState<string>('1h')
+  const [community, setCommunity] = useState<number | null>(null)
+  const [window, setWindow] = useState<(typeof WINDOWS)[number]>('24h')
   const [cascadeId, setCascadeId] = useState<string | null>(null)
   const temporal = useNetworkTemporal(window)
   const influence = useNetworkInfluence()
   const communities = useNetworkCommunities()
   const cascades = useNetworkCascades()
   const cascade = useNetworkCascade(cascadeId)
-  const selectedNode = graph.data?.nodes.find((node) => node.node_id === selected)
-  const mappedCoverage = communities.data?.coverage
-  const top = useMemo(() => [...(graph.data?.nodes ?? [])]
-    .filter((node) => node.profile?.status === 'stored_profile')
-    .sort((left, right) => right.pagerank - left.pagerank)
-    .slice(0, 8), [graph.data])
+
+  const nodes = useMemo(() => graph.data?.nodes ?? [], [graph.data])
+  const selectedNode = nodes.find((node) => node.node_id === selected)
+  const ranking = useMemo(() => [...nodes].sort((a, b) => b.pagerank - a.pagerank).slice(0, 12), [nodes])
   const relationships = useMemo(() => Object.entries((graph.data?.edges ?? []).reduce<Record<string, number>>((counts, edge) => {
     counts[edge.interaction_type] = (counts[edge.interaction_type] ?? 0) + 1
     return counts
-  }, {})).sort(([, left], [, right]) => right - left), [graph.data])
-  if (summary.isLoading || graph.isLoading) return <LoadingState label="Loading interaction graph…" />
-  if (summary.error || graph.error) return <ErrorState error={summary.error ?? graph.error} />
+  }, {})).sort(([, a], [, b]) => b - a), [graph.data])
+
+  if (summary.isLoading || graph.isLoading) return <div className="page"><LoadingState label="Loading interaction graph" /></div>
+  if (summary.error || graph.error) return <div className="page"><ErrorState error={summary.error ?? graph.error} /></div>
+  const s = summary.data!.summary
+  const coverage = communities.data?.coverage
+  const name = (id: string) => { const node = nodes.find((item) => item.node_id === id); return node ? nodeLabel(node) : shortNodeLabel(id) }
+
   return (
-    <div className="page-stack">
-      <PageHeader title="Interaction map" subtitle="Explore observed replies, mentions, quotes, reposts and forwards. This maps interaction structure—not a follower network or causal influence." />
-      <div className="metric-grid metric-grid--four"><MetricCard label="Nodes" value={formatNumber(summary.data?.summary.nodes ?? 0)} detail="observed accounts" icon={UsersRound} tone="blue" /><MetricCard label="Edges" value={formatNumber(summary.data?.summary.edges ?? 0)} detail="aggregated interactions" icon={GitBranch} /><MetricCard label="Communities" value={summary.data?.summary.communities ?? 0} detail="Louvain partition" icon={Orbit} tone="purple" /><MetricCard label="Density" value={(summary.data?.summary.density ?? 0).toFixed(4)} detail="directed graph density" icon={Network} tone="green" /></div>
-      {mappedCoverage && <section className="network-summary-strip" aria-label="Audience map coverage">
-        <strong>{formatNumber(mappedCoverage.stored_profiles)} / {formatNumber(mappedCoverage.total_nodes)} mapped accounts have stored profiles</strong>
-        <span>{formatNumber(mappedCoverage.referenced_only)} referenced only · {formatNumber(mappedCoverage.avatar_available)} avatar URLs · {formatNumber(mappedCoverage.demographic_records)} aggregate records</span>
-      </section>}
-      <div className="network-layout">
-        <Panel title="Conversation topology" subtitle="Recent-edge sample · directed stored interactions · colors and node size recalculated for this loaded graph" className="network-layout__graph"><NetworkGraph graph={graph.data!} onSelect={setSelected} selected={selected} focusedCommunity={focusedCommunity} /><div className="relationship-legend">{relationships.map(([type, count]) => <span key={type}><i />{type} <b>{count}</b></span>)}</div></Panel>
-        <Panel title={selectedNode ? 'Selected account' : 'Mapped profiles'} subtitle={selectedNode ? selectedNode.node_id : 'Stored public profiles · ranked by PageRank within the loaded graph'} className="network-layout__side">
-          {selectedNode ? <><button type="button" className="network-selection-back" onClick={() => setSelected(null)}>← Back to ranking</button><div className="network-account"><AccountAvatar node={selectedNode} size={54} /><div><strong>{nodeLabel(selectedNode)}</strong><span>{selectedNode.profile?.status === 'stored_profile' ? selectedNode.profile.username ? `@${selectedNode.profile.username}` : 'Stored public profile' : 'Referenced only · profile not collected'}</span>{profileLink(selectedNode) && <a href={profileLink(selectedNode)!} target="_blank" rel="noopener noreferrer">View public profile ↗</a>}</div></div><dl className="detail-list"><dt>Community</dt><dd>{selectedNode.community ?? 'Unknown'}</dd><dt>PageRank</dt><dd>{selectedNode.pagerank.toFixed(5)}</dd><dt>Authority</dt><dd>{selectedNode.authority_score.toFixed(5)}</dd><dt>Hub</dt><dd>{selectedNode.hub_score.toFixed(5)}</dd><dt>Betweenness</dt><dd>{selectedNode.betweenness_centrality.toFixed(5)}</dd></dl><div className="network-relationships"><h3>Observed relationships</h3>{graph.data!.edges.filter((edge) => edge.source === selected || edge.target === selected).slice(0, 10).map((edge) => <p key={[edge.event_id, edge.source, edge.target, edge.interaction_type].join(':')}><span>{edge.source === selected ? 'Outgoing' : 'Incoming'} · {edge.interaction_type}</span><strong>{nodeLabel(graph.data!.nodes.find((node) => node.node_id === (edge.source === selected ? edge.target : edge.source)) ?? selectedNode)}</strong><small>{formatDateTime(edge.occurred_at)}</small></p>)}</div></> : <div className="ranking-list">{top.map((node, index) => <button type="button" key={node.node_id} onClick={() => setSelected(node.node_id)}><b>{index + 1}</b><AccountAvatar node={node} size={32} /><span>{nodeLabel(node)}<small>{node.profile?.status === 'stored_profile' ? 'Stored public profile' : 'Referenced only'} · community {node.community ?? '—'}</small></span><em>{node.pagerank.toFixed(4)}</em></button>)}</div>}
+    <div className="page">
+      <PageHeader title="Interaction map" description="Who replies to, mentions, quotes or forwards whom in the collected data" />
+      <Stats label="Graph summary">
+        <Stat label="Accounts" value={s.nodes} meta={coverage ? `${formatNumber(coverage.stored_profiles)} with stored profiles` : undefined} />
+        <Stat label="Links" value={s.edges} meta={relationships.slice(0, 2).map(([type, count]) => `${count} ${type}`).join(', ')} />
+        <Stat label="Communities" value={s.communities} meta="Louvain partition" />
+        <Stat label="Density" value={s.density} format={(n) => n.toFixed(4)} />
+      </Stats>
+
+      <div className="grid">
+        <Panel className="col-8" title="Graph" description="Most recent links. Node size is PageRank, colour is community.">
+          <NetworkGraph graph={graph.data!} onSelect={setSelected} selected={selected} focusedCommunity={community} />
+          {relationships.length > 0 && <div className="legend" style={{ marginTop: 10 }}>{relationships.map(([type, count]) => <span key={type}>{sentenceCase(type)} <b className="num" style={{ color: 'var(--text)' }}>{count}</b></span>)}</div>}
+        </Panel>
+
+        <Panel
+          className="col-4"
+          flush
+          title={selectedNode ? nodeLabel(selectedNode) : 'Top accounts'}
+          description={selectedNode ? platformLabel(selectedNode.node_id.split(':')[0]) : 'By PageRank in the loaded graph'}
+          actions={selectedNode && <button type="button" className="btn btn--ghost btn--icon" onClick={() => setSelected(null)} aria-label="Back to ranking"><X size={15} /></button>}
+        >
+          {selectedNode ? (
+            <div className="panel__body" style={{ display: 'grid', gap: 14 }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <AccountAvatar node={selectedNode} size={44} />
+                <div>
+                  <div className="row__title">{selectedNode.profile?.username ? `@${selectedNode.profile.username}` : shortNodeLabel(selectedNode.node_id)}</div>
+                  <div className="faint" style={{ fontSize: 12 }}>{selectedNode.profile?.status === 'stored_profile' ? 'Profile collected' : 'Only referenced by others'}</div>
+                  {profileLink(selectedNode) && <a className="link" style={{ color: 'var(--accent)', fontSize: 12.5 }} href={profileLink(selectedNode)!} target="_blank" rel="noopener noreferrer">View profile <ExternalLink size={11} style={{ display: 'inline' }} /></a>}
+                </div>
+              </div>
+              <dl className="kv num">
+                <dt>Community</dt><dd><span className="swatch" style={{ background: communityColor(selectedNode.community), marginRight: 6, display: 'inline-block' }} />{selectedNode.community ?? '–'}</dd>
+                <dt>PageRank</dt><dd>{selectedNode.pagerank.toFixed(5)}</dd>
+                <dt>Betweenness</dt><dd>{selectedNode.betweenness_centrality.toFixed(5)}</dd>
+                <dt>Authority / hub</dt><dd>{selectedNode.authority_score.toFixed(4)} / {selectedNode.hub_score.toFixed(4)}</dd>
+              </dl>
+              <div>
+                <div className="faint" style={{ fontSize: 12, marginBottom: 6 }}>Links</div>
+                <div className="rows">
+                  {graph.data!.edges.filter((edge) => edge.source === selected || edge.target === selected).slice(0, 8).map((edge) => (
+                    <div className="row" style={{ padding: '6px 0' }} key={[edge.event_id, edge.source, edge.target].join(':')}>
+                      <div><span className="row__title" style={{ fontSize: 13 }}>{edge.source === selected ? '→ ' : '← '}{name(edge.source === selected ? edge.target : edge.source)}</span><div className="row__meta">{edge.interaction_type} · {formatShortTime(edge.occurred_at)}</div></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rows">
+              {ranking.map((node, index) => (
+                <button type="button" className="row" key={node.node_id} onClick={() => setSelected(node.node_id)} style={{ gridTemplateColumns: '20px 32px minmax(0,1fr) auto' }}>
+                  <span className="faint num">{index + 1}</span>
+                  <AccountAvatar node={node} size={28} />
+                  <span><span className="row__title truncate" style={{ display: 'block' }}>{nodeLabel(node)}</span><span className="row__meta">{platformLabel(node.node_id.split(':')[0])} · community {node.community ?? '–'}</span></span>
+                  <span className="row__value">{node.pagerank.toFixed(3)}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </Panel>
       </div>
 
-      <Panel
-        title="Temporal Network"
-        subtitle="Snapshots use source timestamps; chronology is analytical, not ingestion order."
-        action={
-          <div className="table-toolbar" role="group" aria-label="Snapshot window">
-            {WINDOWS.map((option) => (
-              <button key={option} type="button" className={window === option ? 'is-active' : ''} onClick={() => setWindow(option)}>{option}</button>
-            ))}
+      <Panel flush title="Communities" description={communities.data ? `${communities.data.communities.length} groups in the recent-link sample. Select one to isolate it on the graph.` : undefined}>
+        {communities.isLoading ? <div className="panel__body"><LoadingState /></div> : communities.error ? <div className="panel__body"><ErrorState error={communities.error} /></div> : !communities.data?.communities.length ? <div className="panel__body"><EmptyState title="No communities yet" /></div> : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead><tr><th>Community</th><th className="r">Accounts</th><th className="r">Links</th><th>Main link types</th><th>Language</th><th>Country</th><th>Sector</th><th /></tr></thead>
+              <tbody>
+                {communities.data.communities.slice(0, 10).map((item) => {
+                  const top = (key: string) => {
+                    const signal = item.audience?.[key]
+                    const best = signal && Object.entries(signal.distribution).sort((a, b) => b[1] - a[1])[0]
+                    return signal?.status === 'AVAILABLE' && best ? `${best[0]} (${best[1]})` : '–'
+                  }
+                  const active = community === item.community_id
+                  return (
+                    <tr key={item.community_id}>
+                      <td><span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span className="swatch" style={{ background: communityColor(item.community_id) }} /><strong>{item.community_id}</strong></span></td>
+                      <td className="r">{item.size}</td>
+                      <td className="r">{item.interaction_volume}</td>
+                      <td>{item.dominant_interaction_types.join(', ') || '–'}</td>
+                      <td>{top('language')}</td><td>{top('geography')}</td><td>{top('profession')}</td>
+                      <td className="r"><button type="button" className="btn btn--sm" aria-pressed={active} onClick={() => { setSelected(null); setCommunity(active ? null : item.community_id); document.getElementById('audience-network-map')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' }) }}>{active ? 'Show all' : 'Isolate'}</button></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
-        }
-      >
-        {temporal.isLoading ? <LoadingState label="Loading temporal snapshots…" /> : temporal.error ? <ErrorState error={temporal.error} /> : (temporal.data?.snapshots.filter((s) => s.edges).length ?? 0) === 0 ? (
-          <EmptyState title="No interaction relationships" detail="No interaction relationships available for this window." />
-        ) : (
-          <>
-            <div className="data-table"><div className="data-table__header temporal-columns"><span>Window end</span><span>Nodes</span><span>Edges</span><span>Communities</span><span>Density</span></div>
-              {temporal.data!.snapshots.map((snapshot) => (
-                <div className="data-table__row temporal-columns" key={snapshot.window_end}>
-                  <time>{formatDateTime(snapshot.window_end)}</time><b>{formatNumber(snapshot.nodes)}</b><span>{formatNumber(snapshot.edges)}</span><span>{snapshot.communities}</span><span>{snapshot.density.toFixed(4)}</span>
-                </div>
-              ))}
-            </div>
-            <p className="muted-copy">{temporal.data!.detail}</p>
-            {(temporal.data?.influence_changes.length ?? 0) > 0 && (
-              <div className="insight-list">
-                {temporal.data!.influence_changes.slice(0, 6).map((delta) => (
-                  <p key={`${delta.node_id}-${delta.metric}`}><b>{delta.node_id}</b><span>{delta.direction} ({delta.first_value.toFixed(4)} → {delta.last_value.toFixed(4)} across {delta.windows_measured} windows)</span></p>
-                ))}
-              </div>
-            )}
-          </>
         )}
       </Panel>
 
-      <div className="dashboard-grid">
-        <Panel title="Interaction Centrality" subtitle="Whole stored graph · structural rank may differ from sampled community profiles" className="span-6">
-          {influence.isLoading ? <LoadingState label="Loading influence table…" /> : influence.error ? <ErrorState error={influence.error} /> : (influence.data?.items.length ?? 0) === 0 ? (
-            <EmptyState title="Insufficient relationship data" detail="No ranked nodes for this selection." />
-          ) : (
-            <div className="data-table"><div className="data-table__header influence-columns"><span>Node</span><span>PageRank</span><span>Betweenness</span><span>Authority</span></div>
-              {influence.data!.items.map((node) => (
-                <div className="data-table__row influence-columns" key={node.node_id}><span>{node.node_id}</span><b>{node.pagerank.toFixed(4)}</b><span>{node.betweenness_centrality.toFixed(4)}</span><span>{node.authority_score.toFixed(4)}</span></div>
-              ))}
-            </div>
+      <div className="grid">
+        <Panel className="col-6" flush title="Centrality" description="Whole stored graph">
+          {influence.isLoading ? <div className="panel__body"><LoadingState /></div> : influence.error ? <div className="panel__body"><ErrorState error={influence.error} /></div> : !influence.data?.items.length ? <div className="panel__body"><EmptyState title="Not enough links" /></div> : (
+            <div className="table-wrap"><table className="table">
+              <thead><tr><th>Account</th><th className="r">PageRank</th><th className="r">Betweenness</th><th className="r">Authority</th></tr></thead>
+              <tbody>{influence.data.items.map((node) => <tr key={node.node_id} className="is-clickable" onClick={() => setSelected(node.node_id)}><td className="truncate" style={{ maxWidth: 220 }}><strong>{nodeLabel(node)}</strong></td><td className="r">{node.pagerank.toFixed(4)}</td><td className="r">{node.betweenness_centrality.toFixed(4)}</td><td className="r">{node.authority_score.toFixed(4)}</td></tr>)}</tbody>
+            </table></div>
           )}
         </Panel>
-        <Panel title="Communities" subtitle="Recent-edge sample · select a community to highlight its mapped accounts" className="span-6">
-          {communities.isLoading ? <LoadingState label="Loading communities…" /> : communities.error ? <ErrorState error={communities.error} /> : (communities.data?.communities.length ?? 0) === 0 ? (
-            <EmptyState title="No communities" detail="No interaction relationships available for this window." />
-          ) : (
-            <div className="community-list">
-              {communities.data!.communities.slice(0, 8).map((community) => (
-                <article key={community.community_id} className="community-card" style={{ borderLeftColor: communityColor(community.community_id) }}>
-                  <header><button type="button" aria-pressed={focusedCommunity === community.community_id} onClick={() => { setSelected(null); const next = focusedCommunity === community.community_id ? null : community.community_id; setFocusedCommunity(next); if (next !== null) document.getElementById('audience-network-map')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }) }}>Community {community.community_id}{focusedCommunity === community.community_id ? ' · showing' : ' · show on map'}</button><span>{community.size} accounts · {community.interaction_volume} incident interactions</span></header>
-                  <p>{community.stored_profiles} stored profiles · {community.referenced_only} referenced only</p>
-                  <p>Interaction types: {community.dominant_interaction_types.join(', ') || 'unknown'}</p>
-                  <div className="community-audience">
-                    {(['language', 'geography', 'profession'] as const).map((dimension) => {
-                      const signal = community.audience?.[dimension]
-                      const top = signal && Object.entries(signal.distribution).sort((a, b) => b[1] - a[1])[0]
-                      return <span key={dimension}><b>{dimension}</b> {signal?.status === 'AVAILABLE' && top ? `${top[0]} · ${top[1]}/${community.size}` : 'Insufficient data'}<small>{signal?.known ?? 0} known · {signal?.unknown ?? community.size} unknown{signal?.suppressed ? ` · ${signal.suppressed} withheld` : ''}</small></span>
-                    })}
-                  </div>
-                </article>
+        <Panel className="col-6" flush title="Snapshots" description="Graph measured in consecutive source-time windows" actions={<Segmented label="Window" value={window} options={WINDOWS} onChange={setWindow} />}>
+          {temporal.isLoading ? <div className="panel__body"><LoadingState /></div> : temporal.error ? <div className="panel__body"><ErrorState error={temporal.error} /></div> : !temporal.data?.snapshots.some((snapshot) => snapshot.edges) ? <div className="panel__body"><EmptyState title="No links in these windows" /></div> : (
+            <div className="table-wrap"><table className="table">
+              <thead><tr><th>Window ending</th><th className="r">Accounts</th><th className="r">Links</th><th className="r">Communities</th><th className="r">Density</th></tr></thead>
+              <tbody>{temporal.data.snapshots.map((snapshot) => <tr key={snapshot.window_end}><td className="num">{formatShortTime(snapshot.window_end)}</td><td className="r">{snapshot.nodes}</td><td className="r">{snapshot.edges}</td><td className="r">{snapshot.communities}</td><td className="r">{snapshot.density.toFixed(4)}</td></tr>)}</tbody>
+            </table></div>
+          )}
+          {(temporal.data?.influence_changes.length ?? 0) > 0 && (
+            <div className="rows" style={{ borderTop: '1px solid var(--line)' }}>
+              {temporal.data!.influence_changes.slice(0, 5).map((delta) => (
+                <div className="row" key={`${delta.node_id}-${delta.metric}`}>
+                  <div><div className="row__title" style={{ fontSize: 13 }}>{name(delta.node_id)}</div><div className="row__meta">{delta.direction} across {delta.windows_measured} windows</div></div>
+                  <div className={`row__value delta ${delta.change >= 0 ? 'delta--up' : 'delta--down'}`}>{delta.first_value.toFixed(3)} → {delta.last_value.toFixed(3)}</div>
+                </div>
               ))}
             </div>
           )}
         </Panel>
       </div>
 
-      <Panel
-        title="Observed Cascades"
-        subtitle="Reconstructed from stored parent relationships only. Missing parents are never inferred."
-        action={cascades.data ? <StatusBadge status={cascades.data.count ? 'AVAILABLE' : 'INSUFFICIENT_DATA'} /> : undefined}
-      >
-        {cascades.isLoading ? <LoadingState label="Loading observed cascades…" /> : cascades.error ? <ErrorState error={cascades.error} /> : (cascades.data?.count ?? 0) === 0 ? (
-          <EmptyState title="No observable cascade" detail="No observable cascade reconstructed." />
-        ) : (
-          <>
-            <div className="data-table"><div className="data-table__header cascade-columns"><span>Cascade</span><span>Events</span><span>Depth</span><span>Width</span><span>Duration</span><span>Provenance</span><span /></div>
-              {cascades.data!.cascades.slice(0, 10).map((item) => (
-                <div className="data-table__row cascade-columns" key={item.cascade_id}>
-                  <span>{item.cascade_id}</span><b>{item.event_count}</b><span>{item.depth}</span><span>{item.width}</span><span>{item.duration_seconds != null ? formatDuration(item.duration_seconds) : '—'}</span><span>{item.provenance}</span>
-                  <button type="button" onClick={() => setCascadeId(item.cascade_id)}>Open</button>
-                </div>
-              ))}
+      <div className="grid">
+        <Panel className={cascadeId ? 'col-7' : 'col-12'} flush title="Cascades" description="Reply and forward chains reconstructed from stored parent links">
+          {cascades.isLoading ? <div className="panel__body"><LoadingState /></div> : cascades.error ? <div className="panel__body"><ErrorState error={cascades.error} /></div> : !cascades.data?.count ? <div className="panel__body"><EmptyState title="No cascades yet" detail="Chains appear when collected posts reference collected parents." /></div> : (
+            <div className="table-wrap">
+              <table className="table">
+                <thead><tr><th>Root</th><th className="r">Events</th><th className="r">Depth</th><th className="r">Width</th><th className="r">Duration</th><th>Started</th></tr></thead>
+                <tbody>{cascades.data.cascades.slice(0, 12).map((item) => (
+                  <tr key={item.cascade_id} className="is-clickable" tabIndex={0} aria-selected={cascadeId === item.cascade_id} onClick={() => setCascadeId(item.cascade_id)} onKeyDown={(event) => { if (event.key === 'Enter') setCascadeId(item.cascade_id) }} style={cascadeId === item.cascade_id ? { background: 'var(--surface-2)' } : undefined}>
+                    <td><strong>{platformLabel(item.platform)}</strong> <span className="faint mono">{item.root_platform_post_id.slice(-14)}</span></td>
+                    <td className="r">{item.event_count}</td><td className="r">{item.depth}</td><td className="r">{item.width}</td>
+                    <td className="r">{item.duration_seconds != null ? formatDuration(item.duration_seconds) : '–'}</td>
+                    <td className="num">{formatShortTime(item.started_at)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
             </div>
-            <p className="muted-copy">{cascades.data!.detail} Largest: {cascades.data!.largest_cascade_id} · max depth {cascades.data!.max_depth}.</p>
-          </>
-        )}
-      </Panel>
-
-      {cascadeId && (
-        <Panel title={`Propagation path · ${cascadeId}`} subtitle="Chronological observed steps with community and NLP signals where available.">
-          {cascade.isLoading ? <LoadingState label="Loading propagation path…" /> : cascade.error ? <ErrorState error={cascade.error} /> : !cascade.data ? (
-            <EmptyState title="No observable cascade" detail="Propagation path is partially observable." />
-          ) : (
-            <>
-              <div className="insight-list">
-                <p><b>Provenance</b><span>{cascade.data.provenance}{cascade.data.provenance !== 'observed' ? ' — propagation path shows the observed subset only.' : ''}</span></p>
-                <p><b>Sentiment</b><span>{Object.keys(cascade.data.sentiment_counts).length ? `Observed composition across cascade events: ${Object.entries(cascade.data.sentiment_counts).map(([label, count]) => `${label} ${count}`).join(' · ')}` : 'No NLP results attached to these events.'}</span></p>
-                <p><b>Topics</b><span>Unavailable — per-event topic assignments are not persisted.</span></p>
-              </div>
-              <div className="propagation-path">
-                {cascade.data.propagation_path.map((step) => (
-                  <div className="propagation-path__step" key={step.event_id}>
-                    <b>#{step.depth} {step.node_id}</b>
-                    <span>{step.interaction_type} · {formatDateTime(step.occurred_at)}</span>
-                    <span>community {step.community ?? 'unknown'}{step.sentiment ? ` · ${step.sentiment}` : ''}{step.emotion ? ` · ${step.emotion}` : ''}{step.is_ironic ? ' · ironic' : ''}</span>
-                  </div>
-                ))}
-              </div>
-            </>
           )}
         </Panel>
-      )}
+        {cascadeId && (
+          <Panel className="col-5" title="Propagation" description={cascade.data ? `${cascade.data.event_count} events, ${cascade.data.participant_count} accounts` : undefined} actions={<button type="button" className="btn btn--ghost btn--icon" onClick={() => setCascadeId(null)} aria-label="Close cascade"><X size={15} /></button>}>
+            {cascade.isLoading ? <LoadingState /> : cascade.error ? <ErrorState error={cascade.error} /> : cascade.data && (
+              <ol className="path">
+                {cascade.data.propagation_path.map((step) => (
+                  <li key={step.event_id}>
+                    <b>{step.depth}</b>
+                    <div><span className="row__title" style={{ fontSize: 13 }}>{name(step.node_id)}</span><div className="row__meta">{step.interaction_type}{step.sentiment ? ` · ${step.sentiment}` : ''}{step.is_ironic ? ' · ironic' : ''}</div></div>
+                    <span className="faint num" style={{ fontSize: 12 }}>{formatShortTime(step.occurred_at)}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Panel>
+        )}
+      </div>
 
-      <Panel title="Interpretation" subtitle="Responsible network language"><p className="muted-copy">{summary.data?.summary.interpretation}</p></Panel>
+      <p className="faint" style={{ fontSize: 12.5, maxWidth: 900 }}>{s.interpretation}</p>
     </div>
   )
 }

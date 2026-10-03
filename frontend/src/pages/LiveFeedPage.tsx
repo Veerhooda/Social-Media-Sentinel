@@ -1,133 +1,240 @@
-import { ChevronLeft, ChevronRight, Filter, X } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { ChevronLeft, ChevronRight, ExternalLink, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { getEnrichedEvent } from '../api/events'
 import { PageHeader } from '../components/PageHeader'
 import { Panel } from '../components/Panel'
-import { PlatformBadge } from '../components/PlatformBadge'
-import { EmptyState, ErrorState, LoadingState } from '../components/States'
-import { StatusBadge } from '../components/StatusBadge'
-import { useEnrichedEvents } from '../hooks/useApiQueries'
+import { Platform } from '../components/Platform'
+import { platformLabel } from '../utils/platform'
+import { Status } from '../components/Status'
+import { EmptyState, ErrorState, LoadingState, Notice } from '../components/States'
+import { useEmotions, useEnrichedEvents, useSystem } from '../hooks/useApiQueries'
 import type { EnrichedEvent } from '../types/events'
-import type { EventFilters } from '../utils/dashboard'
-import { formatDateTime, formatNumber, sentenceCase } from '../utils/format'
+import { formatDateTime, formatNumber, formatShortTime, sentenceCase } from '../utils/format'
+
+const PAGE = 50
+/** Canonical interaction types (app/models/events.py InteractionType). */
+const INTERACTIONS = ['post', 'comment', 'reply', 'mention', 'quote', 'repost', 'forward']
+const SENTIMENTS = ['positive', 'neutral', 'negative']
+
+interface Filters { search: string; platform: string; sentiment: string; emotion: string; interaction: string }
+const EMPTY: Filters = { search: '', platform: '', sentiment: '', emotion: '', interaction: '' }
 
 export function LiveFeedPage() {
   const [params, setParams] = useSearchParams()
-  const searchFromUrl = params.get('q') ?? ''
+  const [filters, setFilters] = useState<Filters>({ ...EMPTY, search: params.get('q') ?? '' })
+  const [debounced, setDebounced] = useState(filters.search)
   const [offset, setOffset] = useState(0)
   const [selected, setSelected] = useState<EnrichedEvent | null>(null)
-  const [filters, setFilters] = useState<EventFilters>({
-    search: searchFromUrl, platform: 'all', sentiment: 'all', emotion: 'all', interaction: 'all',
-  })
-  const [debouncedSearch, setDebouncedSearch] = useState(searchFromUrl)
+  const [health] = useSystem()
+  const emotions = useEmotions()
+  const seen = useRef<Set<string> | null>(null)
+
+  useEffect(() => { const q = params.get('q') ?? ''; setFilters((current) => (current.search === q ? current : { ...current, search: q })) }, [params])
   useEffect(() => {
-    const timer = window.setTimeout(() => { setDebouncedSearch(filters.search.trim()); setOffset(0) }, 300)
+    const timer = window.setTimeout(() => { setDebounced(filters.search.trim()); setOffset(0) }, 300)
     return () => window.clearTimeout(timer)
   }, [filters.search])
-  useEffect(() => { setFilters((current) => ({ ...current, search: searchFromUrl })) }, [searchFromUrl])
+
   const query = useMemo(() => ({
     offset,
-    platform: filters.platform === 'all' ? undefined : filters.platform,
-    q: debouncedSearch || undefined,
-    sentiment: filters.sentiment === 'all' ? undefined : filters.sentiment,
-    emotion: filters.emotion === 'all' ? undefined : filters.emotion,
-    interaction: filters.interaction === 'all' ? undefined : filters.interaction,
-  }), [offset, filters.platform, filters.sentiment, filters.emotion, filters.interaction, debouncedSearch])
+    q: debounced || undefined,
+    platform: filters.platform || undefined,
+    sentiment: filters.sentiment || undefined,
+    emotion: filters.emotion || undefined,
+    interaction: filters.interaction || undefined,
+  }), [offset, debounced, filters.platform, filters.sentiment, filters.emotion, filters.interaction])
   const events = useEnrichedEvents(query)
-  const filtered = events.data?.items ?? []
-  const hasFilters = Boolean(filters.search.trim()) || [filters.platform, filters.sentiment, filters.emotion, filters.interaction].some((value) => value !== 'all')
-  const filterIsUpdating = debouncedSearch !== filters.search.trim() || events.isPlaceholderData
-  const clearFilters = () => {
-    setOffset(0)
-    setFilters({ search: '', platform: 'all', sentiment: 'all', emotion: 'all', interaction: 'all' })
-    setParams({})
-  }
-  const hasReal = events.data?.items.some(({ event }) => !event.source_metadata.replay)
-  const hasReplay = events.data?.items.some(({ event }) => Boolean(event.source_metadata.replay))
-  const mode = hasReal && hasReplay ? 'mixed' : hasReal ? 'live' : hasReplay ? 'replay' : 'idle'
-  if (events.isLoading) return <LoadingState label="Loading chronological event feed…" />
-  if (events.error) return <ErrorState error={events.error} />
+
+  // Deep link from other pages: /live-feed?event=<id>
+  const eventId = params.get('event')
+  const linked = useQuery({
+    queryKey: ['events', 'enriched', 'one', eventId],
+    queryFn: () => getEnrichedEvent(eventId!),
+    retry: false,
+    enabled: Boolean(eventId),
+  })
+  useEffect(() => { if (linked.data) setSelected(linked.data) }, [linked.data])
+
+  // Highlight rows that arrive while the page is open.
+  const items = events.data?.items ?? []
+  const fresh = new Set<string>()
+  if (seen.current) items.forEach((item) => { if (!seen.current!.has(item.event.event_id)) fresh.add(item.event.event_id) })
+  useEffect(() => { if (events.data) seen.current = new Set(events.data.items.map((item) => item.event.event_id)) }, [events.data])
+  useEffect(() => { seen.current = null }, [query])
+
+  const platforms = (health.data?.platforms ?? []).filter((platform) => platform.event_count > 0).map((platform) => platform.platform)
+  const emotionOptions = useMemo(() => {
+    const latest = emotions.data?.daily.at(-1)?.emotion_distribution ?? {}
+    return Object.keys(latest).filter((label) => label !== 'nervousness').sort()
+  }, [emotions.data])
+  const active = Object.entries(filters).some(([key, value]) => key !== 'search' ? Boolean(value) : Boolean(value.trim()))
+  const updating = debounced !== filters.search.trim() || events.isPlaceholderData
+  const total = events.data?.total ?? 0
+  const set = (patch: Partial<Filters>) => { setOffset(0); setFilters((current) => ({ ...current, ...patch })) }
+  const close = () => { setSelected(null); if (eventId) { params.delete('event'); setParams(params, { replace: true }) } }
+
   return (
-    <div className="page-stack">
-      <PageHeader title="Conversation feed" subtitle="Stored canonical events ordered by source time, with persisted NLP analysis. New data is checked every five seconds." actions={<StatusBadge status={mode} label={mode === 'live' ? 'STORED REAL DATA' : mode === 'mixed' ? 'MIXED DATA' : undefined} />} />
-      <Panel className="feed-panel" title="Collected conversations" subtitle={filterIsUpdating ? 'Updating results…' : `${events.data?.total ?? 0} matching stored events · filters and counts cover the database`} action={<div className="feed-panel__actions"><Filter size={17} aria-hidden="true" />{hasFilters && <button type="button" onClick={clearFilters}>Clear filters</button>}</div>}>
-        <div className="filter-bar">
-          <label className="feed-filter"><span>Search</span><input value={filters.search} maxLength={200} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Text, author, hashtag" aria-label="Search event feed" /></label>
-          <Select label="Platform" value={filters.platform} onChange={(value) => { setOffset(0); setFilters({ ...filters, platform: value }) }} options={['all', 'x', 'telegram', 'youtube']} />
-          <Select label="Sentiment" value={filters.sentiment} onChange={(value) => { setOffset(0); setFilters({ ...filters, sentiment: value }) }} options={['all', 'positive', 'neutral', 'negative']} />
-          <Select label="Emotion" value={filters.emotion} onChange={(value) => { setOffset(0); setFilters({ ...filters, emotion: value }) }} options={['all', 'excitement', 'approval', 'neutral', 'admiration', 'anxiety']} />
-          <Select label="Interaction" value={filters.interaction} onChange={(value) => { setOffset(0); setFilters({ ...filters, interaction: value }) }} options={['all', 'post', 'comment', 'mention', 'reply', 'quote', 'repost', 'forward']} />
-        </div>
-        <div aria-live="polite" className="sr-only">{filterIsUpdating ? 'Updating results' : `${events.data?.total ?? 0} matching events`}</div>
-        {filterIsUpdating ? <LoadingState label="Updating conversation results…" /> : filtered.length ? (
-          <div className="event-table" role="table" aria-label="Canonical event feed">
-            <div className="event-table__header" role="row"><span>Time</span><span>Source</span><span>Conversation</span><span>Analysis</span><span>Engagement</span></div>
-            {filtered.map((item) => <EventRow key={item.event.event_id} item={item} onClick={() => setSelected(item)} />)}
+    <div className="page">
+      <PageHeader
+        title="Conversations"
+        description="Every collected post, comment and reply with its model analysis. Refreshes every 5 seconds."
+        actions={<Status status="running" label={`${formatNumber(total)} ${active ? 'matching' : 'events'}`} />}
+      />
+      {linked.error && <Notice tone="error">The linked conversation could not be loaded: {linked.error instanceof Error ? linked.error.message : 'unknown error'}</Notice>}
+      <Panel
+        flush
+        title={
+          <div className="filters" role="search">
+            <input className="input" style={{ width: 260 }} value={filters.search} maxLength={200} placeholder="Search text, author or hashtag" aria-label="Search conversations" onChange={(event) => set({ search: event.target.value })} />
+            <FilterSelect label="Platform" value={filters.platform} options={platforms} format={platformLabel} onChange={(platform) => set({ platform })} />
+            <FilterSelect label="Sentiment" value={filters.sentiment} options={SENTIMENTS} onChange={(sentiment) => set({ sentiment })} />
+            <FilterSelect label="Emotion" value={filters.emotion} options={emotionOptions} onChange={(emotion) => set({ emotion })} />
+            <FilterSelect label="Type" value={filters.interaction} options={INTERACTIONS} onChange={(interaction) => set({ interaction })} />
+            {active && <button type="button" className="btn btn--ghost btn--sm" onClick={() => { setFilters(EMPTY); setOffset(0); setParams({}) }}><X size={13} /> Clear</button>}
+            {updating && <span className="spinner" aria-label="Updating results" />}
           </div>
-        ) : <EmptyState title="No events match these filters" detail="Clear a filter or try a different search across the stored corpus." />}
-        <div className="pagination">
-          <button type="button" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}><ChevronLeft size={15} /> Newer</button>
-          <span>{events.data?.total ? offset + 1 : 0}–{Math.min(offset + 50, events.data?.total ?? 0)} of {events.data?.total ?? 0}</span>
-          <button type="button" disabled={offset + 50 >= (events.data?.total ?? 0)} onClick={() => setOffset(offset + 50)}>Older <ChevronRight size={15} /></button>
-        </div>
+        }
+        footer={
+          <>
+            <span className="num">{total ? `${offset + 1}–${Math.min(offset + PAGE, total)} of ${formatNumber(total)}` : 'No results'}</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button type="button" className="btn btn--sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}><ChevronLeft size={14} /> Newer</button>
+              <button type="button" className="btn btn--sm" disabled={offset + PAGE >= total} onClick={() => setOffset(offset + PAGE)}>Older <ChevronRight size={14} /></button>
+            </div>
+          </>
+        }
+      >
+        <div aria-live="polite" className="sr-only">{updating ? 'Updating results' : `${total} events`}</div>
+        {events.isLoading ? <div className="panel__body"><LoadingState label="Loading conversations" /></div>
+          : events.error ? <div className="panel__body"><ErrorState error={events.error} /></div>
+          : items.length ? (
+            <div className="table-wrap">
+              <table className="table">
+                <thead><tr><th style={{ width: 132 }}>Time</th><th style={{ width: 200 }}>Source</th><th>Text</th><th style={{ width: 170 }}>Analysis</th><th className="r" style={{ width: 96 }}>Reach</th></tr></thead>
+                <tbody>
+                  {items.map((item) => <EventRow key={item.event.event_id} item={item} fresh={fresh.has(item.event.event_id)} onOpen={() => setSelected(item)} />)}
+                </tbody>
+              </table>
+            </div>
+          ) : <div className="panel__body"><EmptyState title="Nothing matches these filters" detail="Clear a filter or try another search." /></div>}
       </Panel>
-      {selected && <EventDrawer item={selected} onClose={() => setSelected(null)} />}
+      {selected && <EventDrawer item={selected} onClose={close} />}
     </div>
   )
 }
 
-function EventRow({ item, onClick }: { item: EnrichedEvent; onClick: () => void }) {
-  const { event, analysis } = item
-  const engagement = event.metrics.likes + event.metrics.shares + event.metrics.comments
-  const activity = event.metrics.views ? `${formatNumber(event.metrics.views)} views` : formatNumber(engagement)
+function FilterSelect({ label, value, options, onChange, format = sentenceCase }: { label: string; value: string; options: string[]; onChange: (value: string) => void; format?: (value: string) => string }) {
   return (
-    <button className="event-row" type="button" role="row" onClick={onClick}>
-      <time className="event-row__time">{formatDateTime(event.created_at)}</time>
-      <div className="event-row__source"><PlatformBadge platform={event.platform} /><span>{event.author.username ? `@${event.author.username}` : event.author.display_name ?? 'Unknown author'}</span></div>
-      <div className="event-row__content"><strong>{sentenceCase(event.interaction_type)}</strong><p>{event.content.text}</p></div>
-      <div className="event-row__analysis">{analysis ? <><StatusBadge status={analysis.sentiment.label} /><span>{sentenceCase(analysis.emotions.primary_label ?? 'Unknown emotion')}</span>{analysis.irony.is_ironic && <em>Irony {Math.round(analysis.irony.confidence * 100)}%</em>}</> : <StatusBadge status="pending" label="Analysis pending" />}</div>
-      <b className="event-row__engagement">{activity}</b>
-    </button>
+    <select className="select" style={{ width: 'auto', minWidth: 120 }} aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
+      <option value="">{label}: all</option>
+      {options.map((option) => <option key={option} value={option}>{format(option)}</option>)}
+    </select>
   )
+}
+
+function reach(item: EnrichedEvent) {
+  const metrics = item.event.metrics
+  if (metrics.views) return `${formatNumber(metrics.views)} views`
+  const engagement = metrics.likes + metrics.shares + metrics.comments
+  return engagement ? `${formatNumber(engagement)} interactions` : '–'
+}
+
+function EventRow({ item, fresh, onOpen }: { item: EnrichedEvent; fresh: boolean; onOpen: () => void }) {
+  const { event, analysis } = item
+  return (
+    <tr className={`is-clickable ${fresh ? 'is-new' : ''}`} tabIndex={0} onClick={onOpen} onKeyDown={(keyEvent) => { if (keyEvent.key === 'Enter' || keyEvent.key === ' ') { keyEvent.preventDefault(); onOpen() } }} aria-label={`Open ${event.interaction_type} from ${event.author.username ?? 'unknown author'}`}>
+      <td className="num" style={{ whiteSpace: 'nowrap' }}>{formatShortTime(event.created_at)}</td>
+      <td>
+        <Platform platform={event.platform} />
+        <div className="faint truncate" style={{ maxWidth: 180, fontSize: 12 }}>{event.author.username ? `@${event.author.username}` : event.author.display_name ?? 'Unknown author'} · {event.interaction_type}</div>
+      </td>
+      <td><p className="clamp-2" style={{ color: 'var(--text)' }}>{event.content.text || '(no text)'}</p></td>
+      <td>
+        {analysis ? (
+          <div style={{ display: 'grid', gap: 2 }}>
+            <span className="sentiment"><i className={`dot dot--${analysis.sentiment.label}`} />{analysis.sentiment.label}</span>
+            <span className="faint" style={{ fontSize: 12 }}>{sentenceCase(analysis.emotions.primary_label ?? 'no emotion')}{analysis.irony.is_ironic ? ' · ironic' : ''}</span>
+          </div>
+        ) : <Status status="pending" label="Not analysed yet" />}
+      </td>
+      <td className="r faint">{reach(item)}</td>
+    </tr>
+  )
+}
+
+function sourceLink(item: EnrichedEvent) {
+  const { event } = item
+  const meta = event.source_metadata as Record<string, unknown>
+  if (event.platform === 'x' && /^\d+$/.test(event.platform_post_id)) return `https://x.com/i/web/status/${event.platform_post_id}`
+  if (event.platform === 'telegram' && typeof meta.channel_username === 'string' && meta.message_id) return `https://t.me/${meta.channel_username}/${meta.message_id}`
+  if (event.platform === 'youtube' && typeof meta.video_id === 'string') return `https://www.youtube.com/watch?v=${meta.video_id}`
+  return null
 }
 
 function EventDrawer({ item, onClose }: { item: EnrichedEvent; onClose: () => void }) {
   const { event, analysis } = item
-  const dialogRef = useRef<HTMLElement>(null)
+  const dialog = useRef<HTMLElement>(null)
   const onCloseRef = useRef(onClose)
   useEffect(() => { onCloseRef.current = onClose }, [onClose])
   useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const closeButton = dialogRef.current?.querySelector<HTMLButtonElement>('button[aria-label="Close event detail"]')
-    closeButton?.focus()
-    const onKeyDown = (keyboardEvent: KeyboardEvent) => {
-      if (keyboardEvent.key === 'Escape') { keyboardEvent.preventDefault(); onCloseRef.current() }
-      if (keyboardEvent.key !== 'Tab') return
-      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? [])
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    dialog.current?.querySelector<HTMLButtonElement>('button')?.focus()
+    const onKey = (keyEvent: KeyboardEvent) => {
+      if (keyEvent.key === 'Escape') { keyEvent.preventDefault(); onCloseRef.current() }
+      if (keyEvent.key !== 'Tab') return
+      const controls = Array.from(dialog.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? [])
       if (!controls.length) return
       const first = controls[0]
       const last = controls.at(-1)!
-      if (keyboardEvent.shiftKey && document.activeElement === first) { keyboardEvent.preventDefault(); last.focus() }
-      else if (!keyboardEvent.shiftKey && document.activeElement === last) { keyboardEvent.preventDefault(); first.focus() }
+      if (keyEvent.shiftKey && document.activeElement === first) { keyEvent.preventDefault(); last.focus() }
+      else if (!keyEvent.shiftKey && document.activeElement === last) { keyEvent.preventDefault(); first.focus() }
     }
-    document.addEventListener('keydown', onKeyDown)
-    return () => { document.removeEventListener('keydown', onKeyDown); previousFocus?.focus() }
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('keydown', onKey); previous?.focus() }
   }, [])
-  const sourceUrl = event.platform === 'x' && /^\d+$/.test(event.platform_post_id)
-    ? `https://x.com/i/web/status/${event.platform_post_id}`
-    : null
+  const link = sourceLink(item)
+  const scores = analysis ? Object.entries(analysis.sentiment.scores).sort((a, b) => b[1] - a[1]) : []
+  const topEmotions = analysis ? Object.entries(analysis.emotions.scores).filter(([label]) => label !== 'nervousness').sort((a, b) => b[1] - a[1]).slice(0, 4) : []
   return (
     <div className="drawer-backdrop" role="presentation" onClick={onClose}>
-      <aside ref={dialogRef} className="event-drawer" role="dialog" aria-modal="true" aria-label="Event details" onClick={(event) => event.stopPropagation()}>
-        <header><div><PlatformBadge platform={item.event.platform} /><h2>Event Detail</h2></div><button type="button" onClick={onClose} aria-label="Close event detail"><X size={19} /></button></header>
-        <section><span className="eyebrow">SOURCE EVENT</span><p className="drawer-text">{event.content.text}</p><dl><dt>Created</dt><dd>{formatDateTime(event.created_at)}</dd><dt>Collected</dt><dd>{formatDateTime(event.collected_at)}</dd><dt>Type</dt><dd>{event.interaction_type}</dd><dt>Source ID</dt><dd>{event.platform_post_id}</dd></dl>{sourceUrl && <a className="drawer-source-link" href={sourceUrl} target="_blank" rel="noopener noreferrer">Open original X post ↗</a>}</section>
-        <section><span className="eyebrow">NLP ANALYSIS</span>{analysis ? <dl><dt>Sentiment</dt><dd>{sentenceCase(analysis.sentiment.label)} · {Math.round(analysis.sentiment.confidence * 100)}%</dd><dt>Primary emotion</dt><dd>{sentenceCase(analysis.emotions.primary_label ?? 'Unavailable')}</dd><dt>Irony</dt><dd>{analysis.irony.is_ironic ? 'Detected' : 'Not detected'} · {Math.round(analysis.irony.confidence * 100)}%</dd><dt>Stance</dt><dd>{analysis.stance.supported ? analysis.stance.label : 'Unsupported for arbitrary target'}</dd><dt>Topic</dt><dd>Per-event assignment unavailable</dd></dl> : <EmptyState title="Analysis pending" />}</section>
-        <section><span className="eyebrow">PUBLIC METRICS</span><div className="mini-metrics"><span><b>{event.metrics.likes}</b> likes</span><span><b>{event.metrics.shares}</b> shares</span><span><b>{event.metrics.comments}</b> replies</span><span><b>{event.metrics.views}</b> views</span></div></section>
+      <aside ref={dialog} className="drawer" role="dialog" aria-modal="true" aria-label="Event details" onClick={(clickEvent) => clickEvent.stopPropagation()}>
+        <header><h2><Platform platform={event.platform} /></h2><button type="button" className="btn btn--ghost btn--icon" onClick={onClose} aria-label="Close event details"><X size={16} /></button></header>
+        <section>
+          <p className="drawer__text">{event.content.text || '(no text)'}</p>
+          {link && <a className="link" href={link} target="_blank" rel="noopener noreferrer">Open on {platformLabel(event.platform)} <ExternalLink size={12} style={{ display: 'inline', verticalAlign: '-1px' }} /></a>}
+        </section>
+        <section>
+          <h3>Source</h3>
+          <dl className="kv">
+            <dt>Author</dt><dd>{event.author.display_name ?? event.author.username ?? event.author.platform_user_id}{event.author.username ? ` (@${event.author.username})` : ''}</dd>
+            <dt>Type</dt><dd>{sentenceCase(event.interaction_type)}</dd>
+            <dt>Posted</dt><dd>{formatDateTime(event.created_at)}</dd>
+            <dt>Collected</dt><dd>{formatDateTime(event.collected_at)}</dd>
+            <dt>Post ID</dt><dd className="mono">{event.platform_post_id}</dd>
+            {event.source_metadata.replay === true && <><dt>Data</dt><dd>Replay fixture</dd></>}
+          </dl>
+        </section>
+        <section>
+          <h3>Analysis</h3>
+          {analysis ? (
+            <dl className="kv">
+              <dt>Sentiment</dt><dd>{scores.map(([label, score]) => `${label} ${Math.round(score * 100)}%`).join(' · ')}</dd>
+              <dt>Emotions</dt><dd>{topEmotions.map(([label, score]) => `${label === 'anxiety' ? 'anxiety (nervousness)' : label} ${Math.round(score * 100)}%`).join(' · ') || '–'}</dd>
+              <dt>Irony</dt><dd>{analysis.irony.is_ironic ? 'Ironic' : 'Not ironic'} · {Math.round(analysis.irony.confidence * 100)}% confidence</dd>
+              <dt>Stance</dt><dd>{analysis.stance.supported && analysis.stance.label ? `${analysis.stance.label} on ${analysis.stance.target}` : 'No validated target'}</dd>
+              <dt>Models</dt><dd className="faint" style={{ fontSize: 12 }}>{[analysis.sentiment.model_name, analysis.emotions.model_name, analysis.irony.model_name].join(', ')}</dd>
+            </dl>
+          ) : <p className="muted">Waiting for the NLP job.</p>}
+        </section>
+        <section>
+          <h3>Public metrics</h3>
+          <dl className="kv">
+            {(['views', 'likes', 'shares', 'comments', 'quotes'] as const).map((key) => <div key={key} style={{ display: 'contents' }}><dt>{sentenceCase(key)}</dt><dd className="num">{formatNumber(event.metrics[key])}</dd></div>)}
+          </dl>
+        </section>
       </aside>
     </div>
   )
-}
-
-function Select({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
-  return <label className="feed-filter"><span>{label}</span><select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option} value={option}>{sentenceCase(option)}</option>)}</select></label>
 }

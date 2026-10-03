@@ -35,3 +35,17 @@ output/
 /builder_prompt.md
 /SYSTEM_ARCHITECTURE_AND_TECH_STACK.md
 /docs/prototype-video.md
+
+# local launcher logs
+api.log
+ui.log
+run_audience_lab.log
+
+# Claude session helpers and verification output
+.sync_apply.sh
+.sync_in.tgz
+.sync_deleted.txt
+/Claude outputs/
+verify_prototype.log
+push_to_github.log
+push_to_github.command

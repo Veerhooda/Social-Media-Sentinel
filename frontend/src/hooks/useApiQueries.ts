@@ -1,4 +1,4 @@
-import { keepPreviousData, queryOptions, useQueries, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getDemographics, getEmotions, getSentiment, getTopics, getTrends } from '../api/analytics'
 import { getEnrichedEvents, getEvents, getLiveEvents } from '../api/events'
 import type { EventQuery } from '../api/events'
@@ -12,6 +12,7 @@ import {
   getNetworkTemporal,
 } from '../api/network'
 import { getHealth, getJobs } from '../api/system'
+import { getSources, runJob } from '../api/sources'
 
 export const POLL_INTERVAL = 30_000
 export const SYSTEM_POLL_INTERVAL = 10_000
@@ -20,6 +21,7 @@ export const LIVE_POLL_INTERVAL = 5_000
 export const queryKeys = {
   health: ['health'] as const,
   jobs: ['jobs'] as const,
+  sources: ['sources'] as const,
   events: (offset = 0) => ['events', offset] as const,
   enrichedEvents: (query: EventQuery = {}) => ['events', 'enriched', query] as const,
   liveEvents: ['events', 'live'] as const,
@@ -148,3 +150,22 @@ export const useNetworkCascade = (cascadeId: string | null) =>
     enabled: cascadeId != null,
     refetchInterval: POLL_INTERVAL,
   })
+
+export const useSources = () =>
+  useQuery({ queryKey: queryKeys.sources, queryFn: getSources, refetchInterval: SYSTEM_POLL_INTERVAL })
+
+/** Runs a scheduler job now and refreshes everything that can change as a result. */
+export function useRunJob() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: runJob,
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.jobs })
+      void client.invalidateQueries({ queryKey: queryKeys.sources })
+      void client.invalidateQueries({ queryKey: queryKeys.health })
+      void client.invalidateQueries({ queryKey: ['events'] })
+      void client.invalidateQueries({ queryKey: ['analytics'] })
+      void client.invalidateQueries({ queryKey: ['network'] })
+    },
+  })
+}

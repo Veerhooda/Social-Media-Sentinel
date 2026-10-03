@@ -45,6 +45,7 @@ class TelegramHistory:
         end_time: datetime | None = None,
         checkpoint: TelegramCheckpoint | None = None,
         collected_at: datetime | None = None,
+        peer: Any | None = None,
     ) -> TelegramHistoryResult:
         if not 1 <= max_messages <= 1000:
             raise ValueError("Telegram history max_messages must be between 1 and 1000")
@@ -56,8 +57,10 @@ class TelegramHistory:
             raise ValueError("Telegram checkpoint belongs to a different channel")
 
         raw_client = self.telegram_client.require_client()
+        # ``peer`` (an InputPeerChannel with a cached access hash) avoids the heavily
+        # rate-limited username resolution on every poll.
         entity = await self.telegram_client.execute(
-            "resolve_public_channel", lambda: raw_client.get_entity(channel)
+            "resolve_public_channel", lambda: raw_client.get_entity(peer if peer is not None else channel)
         )
         require_public_channel(entity)
 
@@ -164,6 +167,8 @@ class TelegramHistory:
             checkpoint=next_checkpoint,
             fetched_count=len(messages),
             rejected_count=rejected,
+            peer_id=_value(entity, "id"),
+            peer_access_hash=_value(entity, "access_hash"),
         )
 
     async def _sender(self, message: Any | None) -> Any | None:

@@ -21,8 +21,18 @@ export const timeAgo = (value: string | null | undefined) => {
   if (seconds < 60) return `${seconds}s ago`
   const minutes = Math.floor(seconds / 60)
   if (minutes < 60) return `${minutes}m ago`
-  return `${Math.floor(minutes / 60)}h ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 48) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
 }
+
+export const formatDate = (value: string | null | undefined) =>
+  value ? new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value)) : 'Not available'
+
+export const formatShortTime = (value: string | null | undefined) =>
+  value ? new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value)) : '–'
+
+export const pct = (ratio: number | null | undefined, digits = 1) => (ratio == null ? '–' : `${(ratio * 100).toFixed(digits)}%`)
 
 export const sentenceCase = (value: string) =>
   value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())

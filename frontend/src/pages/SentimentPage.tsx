@@ -1,56 +1,96 @@
+import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { EmotionBars } from '../charts/EmotionBars'
-import { SentimentChart } from '../charts/SentimentChart'
+import { getEnrichedEvents } from '../api/events'
+import { SignalChart } from '../charts/SignalChart'
+import { SentimentLegend, VolumeChart } from '../charts/VolumeChart'
+import { Bars } from '../components/Bars'
 import { PageHeader } from '../components/PageHeader'
 import { Panel } from '../components/Panel'
-import { ErrorState, LoadingState } from '../components/States'
-import { TimeRangeSelector, type TimeRange } from '../components/TimeRangeSelector'
+import { Segmented } from '../components/Segmented'
+import { Delta, Stat, Stats } from '../components/Stat'
+import { EmptyState, ErrorState, LoadingState } from '../components/States'
 import { useEmotions, useSentiment } from '../hooks/useApiQueries'
-import { emotionTotals, filterTemporalRange } from '../utils/dashboard'
-import { formatDateTime, formatPercent, sentenceCase } from '../utils/format'
+import { bestRange, emotionTotals, SERIES_RANGES, selectSeries, splitNeutralEmotion, type SeriesRange } from '../utils/dashboard'
+import { pct, sentenceCase } from '../utils/format'
 
 export function SentimentPage() {
-  const [range, setRange] = useState<TimeRange>('24H')
+  const [chosen, setRange] = useState<SeriesRange | null>(null)
   const sentiment = useSentiment()
+  const range = chosen ?? bestRange(sentiment.data, ['7d', '30d', 'all'])
   const emotions = useEmotions()
-  if (sentiment.isLoading || emotions.isLoading) return <LoadingState />
-  if (sentiment.error || emotions.error) return <ErrorState error={sentiment.error ?? emotions.error} />
-  const points = filterTemporalRange(sentiment.data?.rolling_1h ?? [], range)
-  const emotionPoints = filterTemporalRange(emotions.data?.rolling_1h ?? [], range)
+  const sample = useQuery({ queryKey: ['events', 'enriched', 'model-sample'], queryFn: () => getEnrichedEvents({ limit: 1, newest_first: true }) })
+  const points = useMemo(() => selectSeries(sentiment.data, range), [sentiment.data, range])
+  const emotionPoints = useMemo(() => selectSeries(emotions.data, range), [emotions.data, range])
+
+  if (sentiment.isLoading || emotions.isLoading) return <div className="page"><LoadingState label="Loading sentiment" /></div>
+  if (sentiment.error || emotions.error) return <div className="page"><ErrorState error={sentiment.error ?? emotions.error} /></div>
+
   const latest = points.at(-1)
+  const previous = points.at(-2)
+  const change = (key: 'positive_ratio' | 'neutral_ratio' | 'negative_ratio' | 'irony_rate' | 'anxiety_average') =>
+    latest && previous ? (latest[key] - previous[key]) * 100 : null
+  const analysed = points.reduce((sum, point) => sum + point.event_count, 0)
+  // Average the emotion scores across every window in range, weighted by window size.
+  const emotionAverage = ((): Record<string, number> => {
+    const totals: Record<string, number> = {}
+    let weight = 0
+    emotionPoints.forEach((point) => {
+      weight += point.event_count
+      Object.entries(point.emotion_distribution).forEach(([label, value]) => { totals[label] = (totals[label] ?? 0) + value * point.event_count })
+    })
+    return weight ? Object.fromEntries(Object.entries(totals).map(([label, value]) => [label, value / weight])) : {}
+  })()
+  const { neutral, emotions: emotionScores } = splitNeutralEmotion(emotionTotals([{ ...(emotionPoints.at(-1) ?? emptyPoint), emotion_distribution: emotionAverage }]))
+  const emotionItems = Object.entries(emotionScores)
+    .map(([label, value]) => ({ label: label === 'anxiety' ? 'Anxiety' : sentenceCase(label), value, display: pct(value) }))
   const stance = latest?.stance_distribution ?? {}
+  const models = sample.data?.items[0]?.analysis
+
   return (
-    <div className="page-stack">
-      <PageHeader title="Sentiment & emotion" subtitle="Separate model signals aligned to source timestamps. These are model estimates, not confirmed feelings." actions={<TimeRangeSelector value={range} onChange={setRange} />} />
-      <section className="signal-summary" aria-label="Latest sentiment and model signals">
-        <div className="signal-summary__group"><span className="eyebrow">SENTIMENT</span><SignalValue label="Positive" value={formatPercent(latest?.positive_ratio ?? null)} tone="positive" /><SignalValue label="Neutral" value={formatPercent(latest?.neutral_ratio ?? null)} /><SignalValue label="Negative" value={formatPercent(latest?.negative_ratio ?? null)} tone="negative" /></div>
-        <div className="signal-summary__group"><span className="eyebrow">MODEL SIGNALS</span><SignalValue label="Anxiety" value={formatPercent(latest?.anxiety_average ?? null)} detail="mapped from nervousness" /><SignalValue label="Irony" value={formatPercent(latest?.irony_rate ?? null)} detail="model estimate" /><SignalValue label="Volume" value={latest ? String(latest.event_count) : 'Unavailable'} detail="latest source window" /></div>
-      </section>
-      <Panel title="Sentiment Over Time" subtitle="Positive, neutral and negative remain distinct model outputs"><SentimentChart points={points} /></Panel>
-      <div className="dashboard-grid">
-        <Panel title="Emotion Distribution" subtitle="Fine-grained GoEmotions scores" className="span-5"><EmotionBars emotions={emotionTotals(emotionPoints)} /></Panel>
-        <Panel title="Emotion Over Time" subtitle="Selected operational signals" className="span-7"><EmotionTimeline points={emotionPoints} /></Panel>
-      </div>
-      <div className="dashboard-grid">
-        <Panel title="Stance Distribution" subtitle="Shown only when a validated fixed target exists" className="span-6">
-          {Object.keys(stance).length ? <div className="distribution-list">{Object.entries(stance).map(([label, value]) => <div key={label}><span>{sentenceCase(label)}</span><div><i style={{ width: `${value * 100}%` }} /></div><b>{formatPercent(value)}</b></div>)}</div> : <div className="insight-callout insight-callout--neutral">General-target stance is unavailable. Sentiment is not substituted for stance.</div>}
+    <div className="page">
+      <PageHeader
+        title="Sentiment"
+        description={`${analysed.toLocaleString('en')} analysed events in ${points.length} ${range === '24h' ? 'hourly' : 'daily'} windows`}
+        actions={<Segmented label="Time range" value={range} options={SERIES_RANGES} onChange={setRange} />}
+      />
+      <Stats label="Latest window">
+        <Stat label="Positive" tone="pos" value={latest ? latest.positive_ratio * 100 : null} format={(n) => n.toFixed(1)} unit="%" meta={<Delta value={change('positive_ratio')} />} />
+        <Stat label="Neutral" value={latest ? latest.neutral_ratio * 100 : null} format={(n) => n.toFixed(1)} unit="%" meta={<Delta value={change('neutral_ratio')} />} />
+        <Stat label="Negative" tone="neg" value={latest ? latest.negative_ratio * 100 : null} format={(n) => n.toFixed(1)} unit="%" meta={<Delta value={change('negative_ratio')} invert />} />
+        <Stat label="Irony rate" tone="sar" value={latest ? latest.irony_rate * 100 : null} format={(n) => n.toFixed(1)} unit="%" meta={<Delta value={change('irony_rate')} invert />} />
+        <Stat label="Anxiety" value={latest ? latest.anxiety_average * 100 : null} format={(n) => n.toFixed(1)} unit="%" meta={<Delta value={change('anxiety_average')} invert />} />
+        <Stat label="Events in window" value={latest?.event_count ?? null} meta={latest ? new Date(latest.window_end).toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : undefined} />
+      </Stats>
+
+      <Panel title="Sentiment share" description="Share of analysed events per window" footer={<SentimentLegend />}>
+        <VolumeChart points={points} mode="share" height={300} />
+      </Panel>
+
+      <div className="grid">
+        <Panel className="col-5" title="Emotions" description={`Average score across the selected range${neutral != null ? ` · neutral ${pct(neutral, 0)}` : ''}`}>
+          {emotionItems.length ? <Bars label="Emotion scores" items={emotionItems} /> : <EmptyState title="No emotion scores in this range" />}
         </Panel>
-        <Panel title="Model Interpretation" subtitle="Evidence and limitations" className="span-6">
-          <div className="insight-list"><p><b>Sentiment</b><span>CardiffNLP social-text classifier with positive, neutral and negative probabilities.</span></p><p><b>Emotion</b><span>GoEmotions multi-label scores. “Anxiety” is a product mapping from native nervousness.</span></p><p><b>Irony</b><span>Binary irony confidence is not equivalent to universal sarcasm understanding.</span></p></div>
+        <Panel className="col-7" title="Signals over time" description="Irony rate and average anxiety and excitement scores">
+          <SignalChart points={points} />
         </Panel>
+        {Object.keys(stance).length > 0 && (
+          <Panel className="col-6" title="Stance" description={`Fixed-target stance, latest window`}>
+            <Bars label="Stance distribution" items={Object.entries(stance).map(([label, value]) => ({ label: sentenceCase(label), value, display: pct(value) }))} max={1} />
+          </Panel>
+        )}
       </div>
+
+      {models && (
+        <p className="faint" style={{ fontSize: 12.5 }}>
+          Models: {models.sentiment.model_name} (sentiment), {models.emotions.model_name} (emotion), {models.irony.model_name} (irony).
+          Anxiety is the GoEmotions “nervousness” label.
+        </p>
+      )}
     </div>
   )
 }
 
-function SignalValue({ label, value, detail, tone }: { label: string; value: string; detail?: string; tone?: 'positive' | 'negative' }) {
-  return <div className="signal-value"><span>{label}</span><strong className={tone ? `signal-value--${tone}` : ''}>{value}</strong>{detail && <small>{detail}</small>}</div>
-}
-
-function EmotionTimeline({ points }: { points: import('../types/analytics').TemporalPoint[] }) {
-  const data = useMemo(() => points.map((point) => ({ ...point, anxiety: point.anxiety_average * 100, excitement: point.excitement_average * 100, irony: point.irony_rate * 100 })), [points])
-  return (
-    <div className="chart chart--bars"><ResponsiveContainer width="100%" height="100%"><LineChart data={data} margin={{ left: -20, right: 10, top: 8 }}><CartesianGrid stroke="#303234" vertical={false} /><XAxis dataKey="window_end" tickFormatter={(value) => formatDateTime(String(value)).split(',').at(-1) ?? ''} tick={{ fontSize: 12, fill: '#a1a3a5' }} axisLine={false} tickLine={false} /><YAxis tickFormatter={(value) => `${value}%`} tick={{ fontSize: 12, fill: '#a1a3a5' }} axisLine={false} tickLine={false} /><Tooltip formatter={(value) => `${Number(value).toFixed(1)}%`} labelFormatter={(value) => formatDateTime(String(value))} contentStyle={{ borderRadius: 12, borderColor: '#434547', background: '#1d1f21', color: '#f5f5f2' }} /><Legend iconType="circle" iconSize={7} /><Line dataKey="anxiety" stroke="#f2b957" strokeWidth={2} dot={false} /><Line dataKey="excitement" stroke="#f6de62" strokeWidth={2} dot={false} /><Line dataKey="irony" stroke="#a884d8" strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div>
-  )
+const emptyPoint = {
+  window_start: '', window_end: '', event_count: 0, positive_ratio: 0, neutral_ratio: 0, negative_ratio: 0,
+  emotion_distribution: {}, anxiety_average: 0, excitement_average: 0, irony_rate: 0, stance_distribution: {},
 }

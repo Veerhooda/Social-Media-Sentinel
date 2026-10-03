@@ -158,6 +158,18 @@ class SocialRepository:
             for row in rows
         ]
 
+    def get_enriched_event(
+        self, event_id: UUID
+    ) -> tuple[CanonicalEvent, NLPResult | None] | None:
+        query = self._event_query().outerjoin(
+            NLPAnalysis, NLPAnalysis.event_id == SocialEvent.event_id
+        ).add_columns(NLPAnalysis).where(SocialEvent.event_id == event_id)
+        row = self.session.execute(query).first()
+        if row is None:
+            return None
+        analysis = NLPResult.from_orm_record(row[2]) if row[2] is not None else None
+        return self._to_event(row[:2]), analysis
+
     def count_enriched_events(
         self,
         *,

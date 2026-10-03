@@ -2,10 +2,12 @@ import Graph from 'graphology'
 import forceAtlas2 from 'graphology-layout-forceatlas2'
 import type { NetworkGraphResponse, NodeMetrics } from '../types/network'
 
-export const COMMUNITY_COLORS = ['#4361ee', '#d66a39', '#148b78', '#a05ca7', '#c89b2b', '#3983a9', '#a45d57']
+import { CATEGORICAL } from '../charts/theme'
+
+export const COMMUNITY_COLORS = CATEGORICAL.slice(0, 7)
 
 export function communityColor(community: number | null): string {
-  return community == null ? '#64748b' : COMMUNITY_COLORS[Math.abs(community) % COMMUNITY_COLORS.length]
+  return community == null ? '#5b6168' : COMMUNITY_COLORS[Math.abs(community) % COMMUNITY_COLORS.length]
 }
 
 export function shortNodeLabel(id: string): string {
@@ -78,7 +80,7 @@ export function buildVisualGraph(data: NetworkGraphResponse): Graph {
       graph.addDirectedEdge(edge.source, edge.target, {
         weight: edge.weight,
         count: 1,
-        color: '#55585b',
+        color: '#3a3f46',
         size: 1.3,
         type: 'arrow',
       })

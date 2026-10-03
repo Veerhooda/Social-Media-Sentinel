@@ -12,13 +12,23 @@ from app.db.repositories.social import SocialRepository
 from app.db.session import SessionLocal
 from app.graph.builder import GraphBuilder
 from app.nlp.service import NLPService
-from app.platforms.x.adapter import XAdapter
 from app.scheduler.schemas import JobExecutionResult, JobRunStatus
 from app.scheduler.service import SchedulerService
+from app.sources.jobs import (  # noqa: F401 - re-exported for existing imports
+    AUDIENCE_SYNC_JOB,
+    DEMOGRAPHICS_JOB,
+    TELEGRAM_COLLECTION_JOB,
+    X_COLLECTION_JOB,
+    YOUTUBE_COLLECTION_JOB,
+    AudienceProfileSyncJob,
+    DemographicsJob,
+    TelegramCollectionJob,
+    XCollectionJob,
+    YouTubeCollectionJob,
+)
 from app.trends.repository import TrendRepository
 from app.trends.schemas import AnalysisStatus
 
-X_COLLECTION_JOB = "x_recent_search"
 NLP_JOB = "nlp_processing"
 TREND_JOB = "trend_analysis"
 GRAPH_JOB = "graph_refresh"
@@ -58,57 +68,6 @@ class CheckpointStore:
             )
         )
         self.session.commit()
-
-
-class XCollectionJob:
-    def __init__(
-        self,
-        *,
-        settings: Settings | None = None,
-        session_factory: sessionmaker[Session] = SessionLocal,
-        adapter: XAdapter | None = None,
-    ):
-        self.settings = settings or get_settings()
-        self.session_factory = session_factory
-        self.adapter = adapter or XAdapter(self.settings)
-
-    def __call__(self) -> JobExecutionResult:
-        if not self.settings.x_bearer_token or not self.settings.x_query.strip():
-            return JobExecutionResult(
-                status=JobRunStatus.SKIPPED,
-                detail="X credentials/query are not configured",
-            )
-        with self.session_factory() as session:
-            repository = SocialRepository(session)
-            checkpoints = CheckpointStore(session)
-            checkpoint = checkpoints.get(X_COLLECTION_JOB)
-            since_id = checkpoint.cursor_value if checkpoint else None
-            result = self.adapter.search_recent(
-                max_results=self.settings.x_max_results,
-                max_pages=self.settings.x_max_pages_per_run,
-                since_id=since_id,
-            )
-            stored = 0
-            duplicates = 0
-            for event in result.events:
-                write = repository.insert_event(event)
-                stored += int(write.created)
-                duplicates += int(not write.created)
-            checkpoints.update(
-                X_COLLECTION_JOB,
-                cursor_value=result.newest_id or since_id,
-                last_event_collected_at=max(
-                    (event.collected_at for event in result.events), default=None
-                ),
-            )
-        return JobExecutionResult(
-            status=JobRunStatus.PASS,
-            processed_count=stored,
-            detail=(
-                f"Fetched {len(result.events)} events; stored {stored}; "
-                f"duplicates {duplicates}; pages {result.pages_fetched}"
-            ),
-        )
 
 
 class NLPProcessingJob:
@@ -273,6 +232,16 @@ def build_scheduler(
         XCollectionJob(settings=settings, session_factory=session_factory),
     )
     scheduler.register(
+        TELEGRAM_COLLECTION_JOB,
+        settings.telegram_poll_interval_seconds,
+        TelegramCollectionJob(settings=settings, session_factory=session_factory),
+    )
+    scheduler.register(
+        YOUTUBE_COLLECTION_JOB,
+        settings.youtube_poll_interval_seconds,
+        YouTubeCollectionJob(settings=settings, session_factory=session_factory),
+    )
+    scheduler.register(
         NLP_JOB,
         settings.nlp_processing_interval_seconds,
         NLPProcessingJob(settings=settings, session_factory=session_factory),
@@ -281,6 +250,16 @@ def build_scheduler(
         TREND_JOB,
         settings.trend_interval_seconds,
         TrendAnalysisJob(settings=settings, session_factory=session_factory),
+    )
+    scheduler.register(
+        DEMOGRAPHICS_JOB,
+        settings.demographics_interval_seconds,
+        DemographicsJob(settings=settings, session_factory=session_factory),
+    )
+    scheduler.register(
+        AUDIENCE_SYNC_JOB,
+        settings.audience_sync_interval_seconds,
+        AudienceProfileSyncJob(settings=settings, session_factory=session_factory),
     )
     scheduler.register(
         GRAPH_JOB,

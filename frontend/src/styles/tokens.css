@@ -1,35 +1,82 @@
+/*
+ * Social Sentinel design tokens. See design.md §3.
+ * Dark graphite workspace, one gold brand accent, semantic data colours.
+ * No blue or violet hues anywhere in the product palette.
+ */
 :root {
-  --canvas: #090a0b;
-  --stage: #1d1f21;
-  --surface: #101112;
-  --surface-subtle: #252628;
-  --border: #343638;
-  --text: #f5f5f2;
-  --text-secondary: #b4b6b7;
-  --text-muted: #a1a3a5;
-  --orange: #f6de62;
-  --orange-hover: #ffe97d;
-  --orange-soft: #302c1a;
-  --blue: #4d83f5;
-  --blue-soft: #1c2947;
-  --pink: #ff7a35;
-  --pink-soft: #3c241c;
-  --emerald: #27cdb8;
-  --emerald-soft: #18332f;
-  --purple: #a884d8;
-  --purple-soft: #30273a;
-  --warning: #f2b957;
-  --error: #f36a72;
-  --sidebar-width: 252px;
-  --topbar-height: 84px;
-  --radius-sm: 12px;
-  --radius: 24px;
-  --radius-lg: 30px;
-  --shadow: none;
-  --shadow-hover: none;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0c0d0f;
+  --bg-rail: #0f1013;
+  --surface: #15171a;
+  --surface-2: #1b1d21;
+  --surface-3: #23262b;
+  --line: #24272c;
+  --line-strong: #31353b;
+
+  /* Text */
+  --text: #ecedee;
+  --text-2: #a9aeb5;
+  --text-3: #7c838c;
+
+  /* Brand */
+  --accent: #e9c46a;
+  --accent-strong: #f2d283;
+  --accent-ink: #17140b;
+  --accent-soft: rgba(233, 196, 106, 0.12);
+
+  /* Semantics */
+  --pos: #3fb98a;
+  --neu: #8a9199;
+  --neg: #e5594f;
+  --sar: #ef8a3b;
+  --ok: #3fb98a;
+  --warn: #e2a33a;
+  --err: #e5594f;
+
+  /* Categorical series (communities, platforms, emotions) */
+  --c1: #e9c46a;
+  --c2: #3fb98a;
+  --c3: #ef8a3b;
+  --c4: #c9b8a0;
+  --c5: #5fb3a7;
+  --c6: #d9798d;
+  --c7: #9db35a;
+  --c8: #8a9199;
+
+  /* Geometry */
+  --r-sm: 4px;
+  --r: 6px;
+  --r-lg: 8px;
+  --rail-width: 224px;
+  --topbar-height: 56px;
+  --gutter: 24px;
+
+  /* Type */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --t-fast: 140ms;
+  --t: 220ms;
+  --t-slow: 520ms;
+
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--text);
-  background: var(--canvas);
+  background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t: 0ms;
+    --t-slow: 0ms;
+  }
 }

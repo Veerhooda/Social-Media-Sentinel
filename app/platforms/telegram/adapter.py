@@ -41,15 +41,22 @@ class TelegramAdapter:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         checkpoint: TelegramCheckpoint | None = None,
+        peer: tuple[int, int] | None = None,
     ) -> TelegramHistoryResult:
         await self.telegram_client.connect()
         try:
+            input_peer = None
+            if peer is not None:
+                from telethon.tl.types import InputPeerChannel
+
+                input_peer = InputPeerChannel(channel_id=peer[0], access_hash=peer[1])
             return await self.history_service.fetch(
                 channel,
                 max_messages=max_messages,
                 start_time=start_time,
                 end_time=end_time,
                 checkpoint=checkpoint,
+                peer=input_peer,
             )
         finally:
             await self.telegram_client.disconnect()

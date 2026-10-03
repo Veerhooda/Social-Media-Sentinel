@@ -1,0 +1,75 @@
+/* Audience Lab – page-specific pieces on top of the shared system. */
+.lab-composer { display: grid; gap: 12px; }
+.lab-composer .textarea { min-height: 132px; font-size: 14px; }
+.lab-composer__row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.lab-composer__row .select { width: 140px; }
+.lab-composer__submit { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lab-grow { flex: 1 1 220px; }
+.lab-preview { position: relative; width: fit-content; }
+.lab-preview img { display: block; max-width: 220px; max-height: 150px; border: 1px solid var(--line-strong); border-radius: var(--r); object-fit: cover; animation: fade var(--t) ease; }
+.lab-preview button { position: absolute; top: 6px; right: 6px; background: rgba(12, 13, 15, 0.8); }
+
+.lab-seg-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 4px 16px 16px; }
+
+.lab-progress { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--bg); animation: fade var(--t) ease; }
+.lab-progress__head { display: flex; align-items: center; gap: 12px; }
+.lab-progress__title { flex: 1; display: grid; gap: 2px; }
+.lab-progress strong { font-size: 13.5px; font-weight: 600; }
+.lab-progress small { color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.lab-progress__bar { height: 3px; overflow: hidden; border-radius: 2px; background: var(--surface-3); }
+.lab-progress__bar i { display: block; height: 100%; background: var(--accent); transition: width var(--t-slow) var(--ease); }
+.lab-progress__stats { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.lab-progress__stats b { color: var(--text); font-weight: 600; }
+.lab-progress__stats .warn b { color: var(--warn); }
+.lab-log { display: grid; gap: 3px; margin: 0; padding: 8px 10px; list-style: none; border-radius: var(--r-sm); background: var(--surface); font-size: 12px; max-height: 220px; overflow-y: auto; }
+.lab-log li { display: grid; grid-template-columns: 70px 1fr; gap: 8px; color: var(--text-2); animation: fade var(--t) ease; }
+.lab-log time { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.lab-log li.warn span { color: var(--warn); }
+.lab-details { margin-top: 12px; color: var(--text-2); font-size: 12.5px; }
+.lab-details summary { cursor: pointer; color: var(--text-3); list-style: none; }
+.lab-details summary::-webkit-details-marker { display: none; }
+.lab-details summary::before { content: '›'; display: inline-block; width: 12px; transition: transform var(--t-fast); }
+.lab-details[open] summary::before { transform: rotate(90deg); }
+.lab-details pre { margin-top: 8px; padding: 10px; overflow-x: auto; border-radius: var(--r-sm); background: var(--bg); color: var(--text-2); font: 11.5px/1.5 var(--font-mono); }
+.lab-details p { margin-top: 6px; }
+.lab-details code { font-family: var(--font-mono); font-size: 11.5px; color: var(--text); }
+.lab-details .lab-log { margin-top: 8px; }
+
+.lab-segments { display: grid; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.lab-segment + .lab-segment { border-top: 1px solid var(--line); }
+.lab-segment__head { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; background: transparent; text-align: left; transition: background var(--t-fast); }
+.lab-segment__head:hover, .lab-segment.is-open .lab-segment__head { background: var(--surface-2); }
+.lab-segment__head .row__title, .lab-segment__head .row__meta { display: block; }
+.lab-segment__head .row__meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lab-segment__code { color: var(--accent); font-size: 12px; font-weight: 600; }
+.lab-segment__share { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text); }
+.lab-segment__body { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; padding: 4px 12px 14px 58px; background: var(--surface-2); font-size: 13px; color: var(--text-2); animation: fade var(--t) ease; }
+.lab-segment__body p + p { margin-top: 6px; }
+
+.lab-summary { padding: 0 16px 14px; max-width: 980px; color: var(--text); font-size: 14px; line-height: 1.6; }
+.lab-recs { display: grid; gap: 14px; padding-left: 18px; font-size: 13px; }
+.lab-recs p { margin-top: 3px; color: var(--text-2); }
+.lab-priority { margin-left: 6px; font-size: 12px; }
+.lab-priority--high { color: var(--accent); }
+.lab-list { padding-left: 16px; display: grid; gap: 4px; }
+
+.lab-rewrite { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.lab-rewrite > div { padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--bg); }
+.lab-rewrite > div.is-new { border-color: var(--accent); }
+.lab-rewrite h3 { display: flex; align-items: center; justify-content: space-between; min-height: 28px; color: var(--text-3); font-size: 12px; font-weight: 500; }
+.lab-rewrite p { margin-top: 4px; color: var(--text); font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+
+.lab-agents { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
+.lab-agent { display: grid; align-content: start; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--line); border-right: 1px solid var(--line); }
+.lab-agent header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lab-agent__quote { color: var(--text); font-size: 13.5px; line-height: 1.55; }
+.lab-voices { display: grid; gap: 6px; list-style: none; font-size: 13px; }
+.lab-voices li { display: grid; grid-template-columns: 8px 1fr; gap: 8px; align-items: baseline; color: var(--text-2); }
+
+@media (max-width: 900px) {
+  .lab-rewrite, .lab-segment__body { grid-template-columns: minmax(0, 1fr); }
+  .lab-segment__body { padding-left: 12px; }
+  .lab-segment__head { grid-template-columns: 34px minmax(0, 1fr); }
+  .lab-segment__share { grid-column: 2; }
+  .lab-agents { grid-template-columns: minmax(0, 1fr); }
+}

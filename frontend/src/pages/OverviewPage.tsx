@@ -1,131 +1,167 @@
-import { Activity, ArrowUpRight, GitBranch, MessageSquareText, RadioTower, TrendingUp } from 'lucide-react'
-import { useState } from 'react'
-import { ActivityHeatmap } from '../charts/ActivityHeatmap'
-import { EmotionBars } from '../charts/EmotionBars'
-import { SentimentChart } from '../charts/SentimentChart'
-import { Panel } from '../components/Panel'
-import { PlatformBadge } from '../components/PlatformBadge'
-import { EmptyState, ErrorState, LoadingState } from '../components/States'
-import { StatusBadge } from '../components/StatusBadge'
-import { TimeRangeSelector, type TimeRange } from '../components/TimeRangeSelector'
-import { useOverviewData, useTopics } from '../hooks/useApiQueries'
-import { NetworkGraph } from '../network/NetworkGraph'
-import { emotionTotals, filterTemporalRange, sentimentShift } from '../utils/dashboard'
-import { formatDateTime, formatNumber, sentenceCase } from '../utils/format'
+import { ArrowRight } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ActivityHeatmap } from '../charts/ActivityHeatmap'
+import { SentimentLegend, VolumeChart } from '../charts/VolumeChart'
+import { Bars } from '../components/Bars'
+import { PageHeader } from '../components/PageHeader'
+import { Panel } from '../components/Panel'
+import { Platform } from '../components/Platform'
+import { platformLabel } from '../utils/platform'
+import { Segmented } from '../components/Segmented'
+import { Delta, Stat, Stats } from '../components/Stat'
+import { Status } from '../components/Status'
+import { EmptyState, ErrorState, LoadingState } from '../components/States'
+import { useOverviewData, useSources, useTopics } from '../hooks/useApiQueries'
+import type { EnrichedEvent } from '../types/events'
+import { emotionTotals, SERIES_RANGES, selectSeries, splitNeutralEmotion, topicState, type SeriesRange } from '../utils/dashboard'
+import { formatDuration, formatNumber, pct, sentenceCase, timeAgo } from '../utils/format'
+import { nodeLabel } from '../utils/network'
 
 export function OverviewPage() {
-  const [range, setRange] = useState<TimeRange>('24H')
-  const [health, jobs, events, enriched, sentiment, emotions, trends, network, graph] = useOverviewData()
+  const [range, setRange] = useState<SeriesRange>('24h')
+  const [mode, setMode] = useState<'count' | 'share'>('count')
+  const [health, , events, enriched, sentiment, emotions, trends, network] = useOverviewData()
   const topics = useTopics()
-  const essential = [health, events, sentiment, trends, network]
-  const error = essential.find((query) => query.error)?.error
-  if (essential.some((query) => query.isLoading)) return <LoadingState />
-  if (error) return <ErrorState error={error} />
+  const sources = useSources()
 
-  const eventItems = events.data?.items ?? []
-  const sentimentPoints = filterTemporalRange(sentiment.data?.rolling_1h ?? [], range)
-  const positiveShareChange = sentimentShift(sentimentPoints)
-  const emotionData = emotionTotals(filterTemporalRange(emotions.data?.rolling_1h ?? [], range))
-  const topicItems = trends.data?.items ?? []
-  const latestSentiment = sentimentPoints.at(-1)
-  const hasReal = enriched.data?.items.some(({ event }) => !event.source_metadata.replay)
-  const hasReplay = enriched.data?.items.some(({ event }) => Boolean(event.source_metadata.replay))
-  const dataMode = hasReal && hasReplay ? 'mixed' : hasReal ? 'live' : hasReplay ? 'replay' : 'idle'
-  const platformSummary = (platform: string) => health.data?.platforms.find((item) => item.platform === platform)
-  const sourceRows = [
-    { id: 'x', label: 'X / Twitter', health: health.data?.x_api.status },
-    { id: 'telegram', label: 'Telegram', health: health.data?.telegram_api.status },
-    { id: 'youtube', label: 'YouTube', health: health.data?.youtube_api.status },
-  ]
+  const points = useMemo(() => selectSeries(sentiment.data, range), [sentiment.data, range])
+  const emotionPoints = useMemo(() => selectSeries(emotions.data, range), [emotions.data, range])
+
+  const essential = [health, sentiment, trends, network]
+  const error = essential.find((query) => query.error)?.error
+  if (essential.some((query) => query.isLoading)) return <div className="page"><LoadingState label="Loading overview" /></div>
+  if (error) return <div className="page"><ErrorState error={error} /></div>
+
+  const latest = points.at(-1)
+  const previous = points.at(-2)
+  const delta = (key: 'positive_ratio' | 'negative_ratio' | 'irony_rate') =>
+    latest && previous ? (latest[key] - previous[key]) * 100 : null
+  const platforms = (health.data?.platforms ?? []).filter((platform) => platform.real_event_count > 0)
+  const newest = platforms.map((platform) => platform.latest_collected_at).filter(Boolean).sort().at(-1)
+  const topicItems = topics.data?.items ?? trends.data?.items ?? []
+  const rising = topicItems.filter((topic) => topic.velocity != null && ['rising', 'explosive'].includes(topic.status)).length
+  const { neutral, emotions: emotionScores } = splitNeutralEmotion(emotionTotals(emotionPoints))
+  const emotionItems = Object.entries(emotionScores).map(([label, value]) => ({ label: sentenceCase(label), value, display: pct(value) }))
+  const topAccounts = [...(network.data?.summary.metrics ?? [])].sort((a, b) => b.pagerank - a.pagerank).slice(0, 5)
+  const rangeLabel = SERIES_RANGES.find((item) => item.value === range)?.label
 
   return (
-    <div className="page-stack overview-page">
-      <p className="overview-intro">Public conversation intelligence grounded in stored events and source timestamps.</p>
-      <section className="overview-stage" aria-label="Audience intelligence overview">
-        <div className="overview-stage__headline">
-          <div><span className="overview-kicker">STORED CANONICAL EVENTS</span><strong>{formatNumber(health.data?.event_count ?? 0)}</strong><p>{formatNumber(health.data?.real_event_count ?? 0)} real · {formatNumber(health.data?.replay_event_count ?? 0)} replay</p></div>
-          <div className="overview-stage__comparisons" aria-label="Latest analyzed source-time window">
-            <div><span>Positive</span><strong>{latestSentiment ? `${(latestSentiment.positive_ratio * 100).toFixed(1)}%` : '—'}</strong></div>
-            <div><span>Neutral</span><strong>{latestSentiment ? `${(latestSentiment.neutral_ratio * 100).toFixed(1)}%` : '—'}</strong></div>
-            <div><span>Negative</span><strong>{latestSentiment ? `${(latestSentiment.negative_ratio * 100).toFixed(1)}%` : '—'}</strong></div>
-            <small>Latest analyzed source-time window · {latestSentiment?.event_count ?? 0} events</small>
+    <div className="page">
+      <PageHeader
+        title="Overview"
+        description={`${formatNumber(health.data?.real_event_count ?? 0)} collected events from ${platforms.length} platform${platforms.length === 1 ? '' : 's'}${newest ? ` · newest collected ${timeAgo(newest)}` : ''}`}
+        actions={<Segmented label="Time range" value={range} options={SERIES_RANGES} onChange={setRange} />}
+      />
+
+      <Stats label="Key measures">
+        <Stat label="Events stored" value={health.data?.real_event_count ?? 0} to="/live-feed" meta={health.data?.replay_event_count ? `${formatNumber(health.data.replay_event_count)} replay kept separate` : `across ${platforms.length} platforms`} />
+        <Stat label="Positive" value={latest ? latest.positive_ratio * 100 : null} format={(n) => n.toFixed(1)} unit="%" tone="pos" to="/sentiment" meta={<><Delta value={delta('positive_ratio')} />{latest && <span>latest window · {latest.event_count} events</span>}</>} />
+        <Stat label="Negative" value={latest ? latest.negative_ratio * 100 : null} format={(n) => n.toFixed(1)} unit="%" tone="neg" to="/sentiment" meta={<><Delta value={delta('negative_ratio')} invert />{latest && <span>latest window</span>}</>} />
+        <Stat label="Irony" value={latest ? latest.irony_rate * 100 : null} format={(n) => n.toFixed(1)} unit="%" tone="sar" to="/sentiment" meta={<><Delta value={delta('irony_rate')} invert />{latest && <span>of analysed posts</span>}</>} />
+        <Stat label="Topics" value={topicItems.length} to="/trends" meta={rising ? `${rising} rising` : 'none rising'} />
+        <Stat label="Interactions" value={network.data?.summary.edges ?? 0} to="/network" meta={`${formatNumber(network.data?.summary.nodes ?? 0)} accounts`} />
+      </Stats>
+
+      <div className="grid">
+        <Panel
+          className="col-8"
+          title="Conversation volume"
+          description={latest ? `${rangeLabel === 'All' ? 'All data' : `Last ${rangeLabel} of data`}, ending ${new Date(latest.window_end).toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${range === '24h' ? 'hourly windows' : 'daily windows'}` : 'Analysed events by sentiment'}
+          actions={<Segmented label="Chart values" value={mode} options={[{ value: 'count', label: 'Events' }, { value: 'share', label: 'Share' }]} onChange={setMode} />}
+          footer={<><SentimentLegend /><span>{points.length} windows</span></>}
+        >
+          <VolumeChart points={points} mode={mode} />
+        </Panel>
+
+        <Panel className="col-4" title="Sources" flush footer={<Link to="/data-sources">Manage sources <ArrowRight size={13} style={{ display: 'inline', verticalAlign: '-2px' }} /></Link>}>
+          <div className="rows">
+            {(sources.data?.platforms ?? []).map((collector) => {
+              const stored = health.data?.platforms.find((platform) => platform.platform === collector.platform)
+              const enabled = collector.sources.filter((source) => source.enabled).length
+              const state = !collector.credentials_configured ? ['idle', 'No credentials'] : !enabled ? ['idle', 'No sources'] : sources.data?.scheduler_running ? ['ok', `Every ${formatDuration(collector.interval_seconds)}`] : ['idle', 'Paused']
+              return (
+                <Link className="row" key={collector.platform} to="/data-sources">
+                  <div>
+                    <div className="row__title"><Platform platform={collector.platform} /></div>
+                    <div className="row__meta">
+                      <Status status={state[0]} label={state[1]} />
+                      <span>{stored?.latest_collected_at ? `last ${timeAgo(stored.latest_collected_at)}` : 'nothing collected'}</span>
+                    </div>
+                  </div>
+                  <div className="row__value">{formatNumber(stored?.real_event_count ?? 0)}</div>
+                </Link>
+              )
+            })}
+            {!sources.data && <div className="row"><LoadingState /></div>}
           </div>
-        </div>
-        <div className="overview-signals">
-          <Link to="/live-feed" className="overview-signal"><span className="overview-signal__icon"><RadioTower size={18} /></span><span className="overview-signal__name">Collection</span><strong>{formatNumber(health.data?.real_event_count ?? 0)}</strong><small>real stored events</small><ArrowUpRight className="overview-signal__arrow" size={19} /></Link>
-          <Link to="/sentiment" className="overview-signal"><span className="overview-signal__icon"><MessageSquareText size={18} /></span><span className="overview-signal__name">Sentiment</span><strong>{positiveShareChange == null ? '—' : `${positiveShareChange >= 0 ? '+' : ''}${(positiveShareChange * 100).toFixed(1)} pp`}</strong><small>{positiveShareChange == null ? 'Insufficient history' : 'positive share vs prior window'}</small><ArrowUpRight className="overview-signal__arrow" size={19} /></Link>
-          <Link to="/trends" className="overview-signal"><span className="overview-signal__icon"><TrendingUp size={18} /></span><span className="overview-signal__name">Topics</span><strong>{topics.data ? formatNumber(topics.data.items.length) : '—'}</strong><small>persisted BERTrend topics</small><ArrowUpRight className="overview-signal__arrow" size={19} /></Link>
-          <Link to="/network" className="overview-signal"><span className="overview-signal__icon"><GitBranch size={18} /></span><span className="overview-signal__name">Interactions</span><strong>{formatNumber(network.data?.summary.edges ?? 0)}</strong><small>observed graph edges</small><ArrowUpRight className="overview-signal__arrow" size={19} /></Link>
-        </div>
-        <div className="overview-stage__lower">
-          <section className="overview-coverage" aria-label="Platform coverage">
-            <header><h2>Source coverage</h2><span>Stored corpus</span></header>
-            <div className="overview-coverage__rows">{sourceRows.map((source) => {
-              const summary = platformSummary(source.id)
-              return <div className="overview-coverage__row" key={source.id}><span className="overview-coverage__mark">{source.id === 'telegram' ? 'TG' : source.id === 'youtube' ? 'YT' : 'X'}</span><div><strong>{source.label}</strong><small>{source.health === 'PASS' ? 'Configured · not necessarily collecting' : 'Collector unavailable or paused'}</small></div><b>{formatNumber(summary?.real_event_count ?? 0)}</b></div>
-            })}</div>
-            <p>{health.data?.replay_event_count ? `${formatNumber(health.data.replay_event_count)} replay events are reported separately.` : 'No replay events stored.'}</p>
-          </section>
-          <section className="overview-primary-chart" aria-label="Sentiment over source time">
-            <header><div><span className="overview-kicker">CHRONOLOGY</span><h2>Sentiment over time</h2><p>Positive, neutral and negative shares · source-time windows</p></div><TimeRangeSelector value={range} onChange={setRange} /></header>
-            <SentimentChart points={sentimentPoints} />
-            <footer><span>{sentimentPoints.length} measured windows</span><StatusBadge status={dataMode} label={dataMode === 'live' ? 'STORED REAL DATA' : undefined} /></footer>
-          </section>
-        </div>
-      </section>
+        </Panel>
 
-      <div className="dashboard-grid">
-        <Panel title="Emotion distribution" subtitle="Latest analyzed window · model-estimated scores" className="span-5"><EmotionBars emotions={emotionData} /></Panel>
-        <Panel title="Conversation activity" subtitle={`UTC day and hour · ${eventItems.length} recently loaded events, not the full corpus`} className="span-7"><ActivityHeatmap events={eventItems} /></Panel>
-      </div>
+        <Panel className="col-7" title="Latest conversations" description="Newest by source time" flush footer={<Link to="/live-feed">Open conversations</Link>}>
+          {enriched.data?.items.length ? <div className="rows">{enriched.data.items.slice(0, 6).map((item) => <ConversationRow key={item.event.event_id} item={item} />)}</div> : enriched.isLoading ? <div className="panel__body"><LoadingState /></div> : <div className="panel__body"><EmptyState /></div>}
+        </Panel>
 
-      <div className="dashboard-grid">
-        <Panel title="Recent conversations" subtitle="Most recently collected and analyzed events" className="span-6 activity-panel">
-          {enriched.isLoading ? <LoadingState /> : enriched.data?.items.length ? (
-            <div className="activity-list">
-              {enriched.data.items.slice(0, 6).map(({ event, analysis }) => (
-                <article className="activity-item" key={event.event_id}>
-                  <div className="activity-item__icon"><Activity size={15} /></div>
-                  <div><div className="activity-item__meta"><PlatformBadge platform={event.platform} /><time>{formatDateTime(event.created_at)}</time></div><p>{event.content.text}</p><span>{analysis ? `${sentenceCase(analysis.sentiment.label)} · ${sentenceCase(analysis.emotions.primary_label ?? 'emotion unavailable')}` : 'Analysis pending'}</span></div>
-                </article>
+        <Panel className="col-5" title="Topics" description={trends.data?.engine ? `${trends.data.engine} · by latest volume` : undefined} flush footer={<Link to="/trends">All topics</Link>}>
+          {topicItems.length ? (
+            <div className="rows">
+              {[...topicItems].sort((a, b) => b.volume - a.volume).slice(0, 6).map((topic) => {
+                const state = topicState(topic)
+                const body = <>
+                  <div>
+                    <div className="row__title truncate">{topic.topic}</div>
+                    <div className="row__meta"><Status status={state.status} label={state.label} />{topic.keywords.slice(0, 3).join(', ')}</div>
+                  </div>
+                  <div className="row__value">{formatNumber(topic.volume)}</div>
+                </>
+                return topic.topic_id ? <Link className="row" key={topic.topic_id} to={`/trends/${topic.topic_id}`}>{body}</Link> : <div className="row" key={topic.topic}>{body}</div>
+              })}
+            </div>
+          ) : <div className="panel__body"><EmptyState title="No topics yet" detail="Topics appear after the trend job has analysed enough events." /></div>}
+        </Panel>
+
+        <Panel className="col-4" title="Emotions" description={`Average model score, latest window${neutral != null ? ` · neutral ${pct(neutral, 0)}` : ''}`}>
+          {emotionItems.length ? <Bars label="Emotion scores" items={emotionItems} /> : <EmptyState title="No emotion scores" />}
+        </Panel>
+
+        <Panel className="col-4" title="Posting activity" description={`${formatNumber(events.data?.items.length ?? 0)} most recent events, by UTC weekday and hour`}>
+          {events.data?.items.length ? <ActivityHeatmap events={events.data.items} /> : <EmptyState />}
+        </Panel>
+
+        <Panel className="col-4" title="Most central accounts" description="PageRank in the stored interaction graph" flush footer={<Link to="/network">Open interaction map</Link>}>
+          {topAccounts.length ? (
+            <div className="rows">
+              {topAccounts.map((node) => (
+                <Link to="/network" className="row" key={node.node_id}>
+                  <div>
+                    <div className="row__title truncate">{nodeLabel(node)}</div>
+                    <div className="row__meta"><span>{platformLabel(node.node_id.split(':')[0])}</span>{node.community != null && <span>community {node.community}</span>}</div>
+                  </div>
+                  <div className="row__value">{node.pagerank.toFixed(3)}</div>
+                </Link>
               ))}
             </div>
-          ) : <EmptyState />}
-        </Panel>
-        <Panel title="Topic measurements" subtitle={trends.data?.detail ?? `Engine: ${trends.data?.engine}`} className="span-6">
-          {topicItems.length ? <div className="topic-table" role="table" aria-label="Latest topic measurements"><div className="topic-table__head" role="row"><span>Topic</span><span>Volume</span><span>Velocity</span><span>Status</span></div>{topicItems.slice(0, 6).map((topic) => <div className="topic-row" role="row" key={topic.topic_id ?? topic.topic}><div><strong>{topic.topic}</strong><span>{topic.keywords.slice(0, 3).join(' · ')}</span></div><b>{topic.volume}</b><span>{topic.velocity == null ? 'Insufficient' : topic.velocity.toFixed(2)}</span><StatusBadge status={topic.velocity == null ? 'INSUFFICIENT_DATA' : topic.status} label={topic.velocity == null ? 'First observation' : undefined} /></div>)}</div> : <EmptyState title="No persisted topics" detail="The hashtag fallback is used only when explicitly labeled." />}
+          ) : <div className="panel__body"><EmptyState title="No interactions yet" /></div>}
         </Panel>
       </div>
-
-      <div className="dashboard-grid">
-        <Panel title="Interaction preview" subtitle="Observed relationships, not follower connections" className="span-12 network-panel">
-          {graph.data ? <NetworkGraph graph={graph.data} /> : <LoadingState />}
-          <div className="network-summary-strip"><span><b>{network.data?.summary.nodes ?? 0}</b> nodes</span><span><b>{network.data?.summary.edges ?? 0}</b> edges</span><span><b>{network.data?.summary.communities ?? 0}</b> communities</span></div>
-          <Link className="panel-link" to="/network">Explore interaction map →</Link>
-        </Panel>
-      </div>
-
-      <Panel title="Data Sources" subtitle="Implementation state and locally stored real data">
-        <div className="source-grid">
-          <SourceCard name="X / Twitter" status={platformSummary('x') ? 'STORED DATA' : 'NO STORED DATA'} detail={health.data?.x_api.status === 'PASS' ? 'Collector configured' : 'Collector currently paused'} summary={platformSummary('x')} />
-          <SourceCard name="Telegram" status={platformSummary('telegram') ? 'STORED DATA' : 'NO STORED DATA'} detail={health.data?.telegram_api.status === 'PASS' ? 'Authorized session configured' : 'Collector currently paused'} summary={platformSummary('telegram')} />
-          <SourceCard name="YouTube" status={platformSummary('youtube') ? 'AVAILABLE' : health.data?.youtube_api.status === 'PASS' ? 'CONFIGURED' : 'NOT CONFIGURED'} detail="Polling-based comment ingestion (not a live stream)" summary={platformSummary('youtube')} />
-          <SourceCard name="Reddit" status="COMING SOON" detail="Post and comment ingestion is not implemented" />
-          <SourceCard name="Meta platforms" status="PLANNED" detail="Instagram and Facebook adapters are inactive" />
-        </div>
-      </Panel>
-      <span className="sr-only">Scheduler jobs loaded: {jobs.data?.jobs.length ?? 0}. Current positive sentiment: {latestSentiment?.positive_ratio ?? 'unavailable'}.</span>
     </div>
   )
 }
 
-function SourceCard({ name, status, detail, summary }: { name: string; status: string; detail: string; summary?: import('../types/system').PlatformDataSummary }) {
+function ConversationRow({ item }: { item: EnrichedEvent }) {
+  const { event, analysis } = item
+  const author = event.author.username ? `@${event.author.username}` : event.author.display_name ?? 'Unknown author'
   return (
-    <article className={`source-card ${summary ? 'source-card--implemented' : 'source-card--planned'}`}>
-      <div className="source-card__top"><strong>{name}</strong><StatusBadge status={summary ? 'AVAILABLE' : 'skipped'} label={status} /></div>
-      <p>{detail}</p>
-      {summary && <span>{formatNumber(summary.real_event_count)} real events</span>}
-    </article>
+    <Link to={`/live-feed?event=${event.event_id}`} className="row" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
+      <div>
+        <div className="row__meta" style={{ marginTop: 0, marginBottom: 3 }}>
+          <Platform platform={event.platform} />
+          <span className="truncate" style={{ maxWidth: 200 }}>{author}</span>
+          <span>{timeAgo(event.created_at)}</span>
+          {analysis && <span className="sentiment"><i className={`dot dot--${analysis.sentiment.label}`} />{analysis.sentiment.label}</span>}
+          {analysis?.irony.is_ironic && <span className="sentiment"><i className="dot dot--sarcastic" />ironic</span>}
+        </div>
+        <p className="clamp-2" style={{ color: 'var(--text)', fontSize: 13.5 }}>{event.content.text || '(no text)'}</p>
+      </div>
+    </Link>
   )
 }

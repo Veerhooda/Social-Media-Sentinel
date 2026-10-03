@@ -87,17 +87,16 @@ function renderPage() {
   )
 }
 
-it('renders temporal snapshots, influence, communities and observed cascades', async () => {
+it('renders snapshots, centrality, communities and observed cascades', async () => {
   renderPage()
-  expect(await screen.findByText('Temporal Network')).toBeInTheDocument()
-  expect(screen.getByText('Interaction Centrality')).toBeInTheDocument()
+  expect(await screen.findByText('Snapshots')).toBeInTheDocument()
+  expect(screen.getByText('Centrality')).toBeInTheDocument()
   expect(screen.getAllByText('Communities').length).toBeGreaterThan(0)
-  expect(screen.getByText('Observed Cascades')).toBeInTheDocument()
-  expect(screen.getByText('x:root-1')).toBeInTheDocument()
+  expect(screen.getByText('Cascades')).toBeInTheDocument()
+  expect(screen.getByText('root-1')).toBeInTheDocument()
   expect(screen.getByText(/pagerank increased/)).toBeInTheDocument()
-  expect(screen.queryByText(/Most powerful users/i)).not.toBeInTheDocument()
-  expect(screen.getByText(/1 \/ 4 mapped accounts have stored profiles/)).toBeInTheDocument()
-  const community = screen.getByRole('button', { name: /Community 0.*show on map/ })
-  fireEvent.click(community)
-  expect(community).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByText('1 with stored profiles')).toBeInTheDocument()
+  const isolate = screen.getByRole('button', { name: 'Isolate' })
+  fireEvent.click(isolate)
+  expect(screen.getByRole('button', { name: 'Show all' })).toHaveAttribute('aria-pressed', 'true')
 })

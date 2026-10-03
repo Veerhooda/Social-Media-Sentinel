@@ -22,18 +22,35 @@ def aggregate_rolling(
     *,
     window: timedelta = timedelta(hours=1),
     step: timedelta = timedelta(minutes=15),
+    span: timedelta | None = timedelta(days=7),
 ) -> list[TemporalPoint]:
+    """Sliding windows (``window`` wide, every ``step``) over the most recent ``span`` of data.
+
+    Windows are anchored to the newest event, not the wall clock, so historical
+    collections still produce a series. Older history is covered by ``aggregate_daily``.
+    Uses a two-pointer sweep, so cost is linear in events plus windows.
+    """
     if not records:
         return []
     ordered = sorted(records, key=lambda item: item[0].created_at)
-    first_end = _floor_time(ordered[0][0].created_at, step) + step
-    last_end = _floor_time(ordered[-1][0].created_at, step) + step
+    times = [item[0].created_at for item in ordered]
+    last_end = _floor_time(times[-1], step) + step
+    first_end = _floor_time(times[0], step) + step
+    if span is not None:
+        first_end = max(first_end, last_end - span)
     points = []
     current = first_end
+    lo = hi = 0
+    count = len(ordered)
     while current <= last_end:
-        selected = [item for item in ordered if current - window <= item[0].created_at < current]
-        if selected:
-            points.append(_aggregate_window(selected, current - window, current))
+        start = current - window
+        while lo < count and times[lo] < start:
+            lo += 1
+        hi = max(hi, lo)
+        while hi < count and times[hi] < current:
+            hi += 1
+        if hi > lo:
+            points.append(_aggregate_window(ordered[lo:hi], start, current))
         current += step
     return points
 

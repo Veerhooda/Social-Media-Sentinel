@@ -282,6 +282,17 @@ def enriched_events(
     )
 
 
+@router.get("/events/{event_id}/enriched", response_model=EnrichedEvent)
+def get_enriched_event(
+    event_id: UUID, repository: SocialRepository = Depends(get_repository)
+) -> EnrichedEvent:
+    found = repository.get_enriched_event(event_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    event, analysis = found
+    return EnrichedEvent(event=event, analysis=analysis)
+
+
 @router.get("/events/{event_id}", response_model=CanonicalEvent)
 def get_event(
     event_id: UUID, repository: SocialRepository = Depends(get_repository)

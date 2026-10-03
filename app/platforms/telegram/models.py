@@ -19,6 +19,8 @@ class TelegramHistoryResult(BaseModel):
     checkpoint: TelegramCheckpoint | None = None
     fetched_count: int = Field(ge=0)
     rejected_count: int = Field(ge=0)
+    peer_id: int | None = None
+    peer_access_hash: int | None = None
 
 
 class TelegramHealth(BaseModel):

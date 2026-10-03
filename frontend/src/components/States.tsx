@@ -1,45 +1,35 @@
-import { AlertTriangle, Database, WifiOff } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
+import type { ReactNode } from 'react'
 
-export function LoadingState({ label = 'Loading analytics…' }: { label?: string }) {
+export function LoadingState({ label = 'Loading' }: { label?: string }) {
   return (
-    <div className="state state--loading" role="status">
-      <span className="state__label">{label}</span>
-      <div className="skeleton-layout" aria-hidden="true">
-        <span className="skeleton-line skeleton-line--short" />
-        <span className="skeleton-block" />
-        <span className="skeleton-block skeleton-block--small" />
-      </div>
+    <div className="skeleton" role="status" aria-live="polite">
+      <span className="sr-only">{label}</span>
+      <span /><span /><span /><span className="block" />
     </div>
   )
 }
 
-export function EmptyState({ title = 'No data in this window', detail }: { title?: string; detail?: string }) {
+export function EmptyState({ title = 'No data in this window', detail, action }: { title?: string; detail?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="state">
-      <Database size={24} aria-hidden="true" />
+    <div className="empty">
       <strong>{title}</strong>
       {detail && <span>{detail}</span>}
+      {action}
     </div>
   )
 }
 
 export function ErrorState({ error }: { error: unknown }) {
-  const message = error instanceof Error ? error.message : 'The backend request failed.'
+  const message = error instanceof Error ? error.message : 'The request failed.'
   return (
-    <div className="state state--error" role="alert">
-      <AlertTriangle size={24} aria-hidden="true" />
-      <strong>Unable to load analytics</strong>
+    <div className="error" role="alert">
+      <strong>Could not load this data</strong>
       <span>{message}</span>
     </div>
   )
 }
 
-export function UnavailableState({ title, detail }: { title: string; detail: string }) {
-  return (
-    <div className="state state--unavailable">
-      <WifiOff size={24} aria-hidden="true" />
-      <strong>{title}</strong>
-      <span>{detail}</span>
-    </div>
-  )
+export function Notice({ children, tone = 'warn' }: { children: ReactNode; tone?: 'warn' | 'error' }) {
+  return <div className={`notice ${tone === 'error' ? 'notice--error' : ''}`} role={tone === 'error' ? 'alert' : 'status'}><AlertTriangle size={15} aria-hidden="true" /><div>{children}</div></div>
 }
