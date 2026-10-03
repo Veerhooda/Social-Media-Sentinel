@@ -18,6 +18,14 @@ class EdgeRecord(BaseModel):
     occurred_at: datetime
 
 
+class PublicNodeProfile(BaseModel):
+    status: str = "referenced_only"
+    username: str | None = None
+    display_name: str | None = None
+    avatar_url: str | None = None
+    is_verified: bool | None = None
+
+
 class NodeMetrics(BaseModel):
     node_id: str
     in_degree_centrality: float
@@ -28,6 +36,23 @@ class NodeMetrics(BaseModel):
     hub_score: float
     authority_score: float
     community: int | None = None
+    profile: PublicNodeProfile | None = None
+
+
+class GraphCoverage(BaseModel):
+    total_nodes: int = 0
+    stored_profiles: int = 0
+    referenced_only: int = 0
+    avatar_available: int = 0
+    demographic_records: int = 0
+
+
+class AudienceDimension(BaseModel):
+    status: str = "INSUFFICIENT_DATA"
+    known: int = 0
+    unknown: int = 0
+    suppressed: int = 0
+    distribution: dict[str, int] = Field(default_factory=dict)
 
 
 class NetworkSummary(BaseModel):
@@ -102,6 +127,9 @@ class CommunityProfile(BaseModel):
     interaction_type_counts: dict[str, int] = Field(default_factory=dict)
     first_seen_at: datetime | None = None
     last_seen_at: datetime | None = None
+    stored_profiles: int = 0
+    referenced_only: int = 0
+    audience: dict[str, AudienceDimension] = Field(default_factory=dict)
 
 
 class CommunityListResponse(BaseModel):
@@ -109,6 +137,8 @@ class CommunityListResponse(BaseModel):
     window_end: datetime | None = None
     communities: list[CommunityProfile] = Field(default_factory=list)
     detail: str = ""
+    coverage: GraphCoverage = Field(default_factory=GraphCoverage)
+    edge_sample_limit: int | None = None
 
 
 class CascadeSummary(BaseModel):

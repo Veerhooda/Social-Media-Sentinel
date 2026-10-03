@@ -212,7 +212,9 @@ def test_telegram_to_shared_postgres_nlp_temporal_trend_graph_and_api(
 
     assert first.stored is True
     assert first.nlp_processed is True
-    assert first.graph_edges_created == 2
+    # A textual @peer without a resolved platform ID must not become an
+    # invented account node; the observed reply still produces one edge.
+    assert first.graph_edges_created == 1
     assert duplicate.duplicate is True
     assert duplicate.nlp_processed is False
     assert trend_result.status is AnalysisStatus.PASS
@@ -252,5 +254,5 @@ def test_telegram_to_shared_postgres_nlp_temporal_trend_graph_and_api(
     assert sentiment.json()["rolling_1h"][0]["positive_ratio"] == 1.0
     assert emotions.json()["rolling_1h"][0]["anxiety_average"] == 0.2
     assert trends.json()["engine"] == "BERTrend/telegram-boundary-test"
-    assert network.json()["summary"]["nodes"] == 3
-    assert network.json()["summary"]["edges"] == 2
+    assert network.json()["summary"]["nodes"] == 2
+    assert network.json()["summary"]["edges"] == 1

@@ -32,19 +32,20 @@ def community_profiles(
     type_counts: dict[int, Counter] = {}
     first_seen: dict[int, object] = {}
     last_seen: dict[int, object] = {}
+    for node, community in communities.items():
+        members.setdefault(community, set()).add(node)
     for edge in edges:
         source = f"{edge.platform}:{edge.source_platform_user_id}"
         target = f"{edge.platform}:{edge.target_platform_user_id}"
-        community = communities.get(source, communities.get(target))
-        if community is None:
-            continue
-        members.setdefault(community, set()).update((source, target))
-        volumes[community] = volumes.get(community, 0) + 1
-        type_counts.setdefault(community, Counter())[edge.interaction_type] += 1
-        if community not in first_seen or edge.occurred_at < first_seen[community]:  # type: ignore[operator]
-            first_seen[community] = edge.occurred_at
-        if community not in last_seen or edge.occurred_at > last_seen[community]:  # type: ignore[operator]
-            last_seen[community] = edge.occurred_at
+        # A cross-community edge is incident to both communities, but it
+        # never makes either endpoint a member of the other's community.
+        for community in {communities.get(source), communities.get(target)} - {None}:
+            volumes[community] = volumes.get(community, 0) + 1
+            type_counts.setdefault(community, Counter())[edge.interaction_type] += 1
+            if community not in first_seen or edge.occurred_at < first_seen[community]:  # type: ignore[operator]
+                first_seen[community] = edge.occurred_at
+            if community not in last_seen or edge.occurred_at > last_seen[community]:  # type: ignore[operator]
+                last_seen[community] = edge.occurred_at
     profiles = [
         CommunityProfile(
             community_id=community,
@@ -57,7 +58,7 @@ def community_profiles(
             first_seen_at=first_seen.get(community),  # type: ignore[arg-type]
             last_seen_at=last_seen.get(community),  # type: ignore[arg-type]
         )
-        for community in sorted(set(communities.values()))
+        for community in sorted(members)
     ]
     profiles.sort(key=lambda item: item.interaction_volume, reverse=True)
     return profiles

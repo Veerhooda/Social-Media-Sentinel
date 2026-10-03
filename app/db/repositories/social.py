@@ -364,6 +364,37 @@ class SocialRepository:
             query = query.limit(limit)
         return [EdgeRecord.model_validate(row) for row in self.session.scalars(query).all()]
 
+    def graph_audience_records(self, node_ids: set[str]) -> dict[str, tuple[SocialUser, object | None]]:
+        """Resolve graph IDs to stored public profiles and existing aggregates.
+
+        Referenced targets without a stored SocialUser remain absent. No API
+        lookup or profile inference is performed while reading the graph.
+        """
+        from app.db.models import UserDemographic
+
+        by_platform: dict[str, set[str]] = {}
+        for node_id in node_ids:
+            platform, separator, user_id = node_id.partition(":")
+            if separator and user_id:
+                by_platform.setdefault(platform, set()).add(user_id)
+        result: dict[str, tuple[SocialUser, object | None]] = {}
+        real_event = (
+            select(SocialEvent.event_id)
+            .where(
+                SocialEvent.author_id == SocialUser.user_id,
+                func.coalesce(SocialEvent.source_metadata["replay"].as_boolean(), False).is_(False),
+            )
+            .exists()
+        )
+        for platform, ids in by_platform.items():
+            rows = self.session.execute(
+                select(SocialUser, UserDemographic)
+                .outerjoin(UserDemographic, UserDemographic.user_id == SocialUser.user_id)
+                .where(SocialUser.platform == platform, SocialUser.platform_user_id.in_(ids), real_event)
+            ).all()
+            result.update({f"{platform}:{user.platform_user_id}": (user, demographic) for user, demographic in rows})
+        return result
+
     def list_cascade_records(
         self,
         *,

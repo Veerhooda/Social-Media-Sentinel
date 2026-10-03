@@ -44,6 +44,14 @@ exposes per-user demographic profiles. The dashboard Demographics screen
 shows horizontal-bar distributions with unknown/insufficient-data states and
 confidence context. No profile cards, no individual ages, locations, or jobs.
 
+The interaction-map API reuses persisted demographic records to describe
+Louvain communities in aggregate. It reports each community's profile
+coverage and known/unknown counts. Language, country, and interest-sector
+category counts are withheld until at least three mapped community members
+share the category. Public names and avatars identify stored
+accounts on the map, but individual demographic predictions remain private
+to the processing layer.
+
 ## Current corpus results (local, 280 subjects)
 
 - Language: AVAILABLE — en 100% (X payload codes observed; Telegram texts identified).

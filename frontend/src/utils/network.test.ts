@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import type { NetworkGraphResponse } from '../types/network'
-import { buildVisualGraph, communityColor, connectedCore, shortNodeLabel } from './network'
+import { buildVisualGraph, communityColor, connectedCore, nodeLabel, profileLink, shortNodeLabel } from './network'
 
 it('builds a deterministic directed network from actual API edges', () => {
   const graph: NetworkGraphResponse = {
@@ -30,4 +30,21 @@ it('keeps the connected core tied to visible observed edges', () => {
   }
   expect(connectedCore(graph).nodes.map((node) => node.node_id)).toEqual(['x:a', 'x:b'])
   expect(connectedCore(graph, 1).edge_count).toBe(0)
+})
+
+it('uses stored public identity and photo only when a profile exists', () => {
+  const known: NetworkGraphResponse['nodes'][number] = {
+    node_id: 'x:123', community: 1, pagerank: 0.2, in_degree_centrality: 0,
+    out_degree_centrality: 0, betweenness_centrality: 0, closeness_centrality: 0,
+    hub_score: 0, authority_score: 0,
+    profile: { status: 'stored_profile', username: 'alice', display_name: 'Alice', avatar_url: 'https://example.org/a.png', is_verified: false },
+  }
+  const unknown = { ...known, node_id: 'x:456', profile: { status: 'referenced_only' as const, username: null, display_name: null, avatar_url: null, is_verified: null } }
+  const visual = buildVisualGraph({ nodes: [known, unknown], edges: [], node_count: 2, edge_count: 0 })
+  expect(nodeLabel(known)).toBe('Alice')
+  expect(profileLink(known)).toBe('https://x.com/alice')
+  expect(visual.getNodeAttribute('x:123', 'image')).toBe('https://example.org/a.png')
+  expect(visual.getNodeAttribute('x:456', 'image')).toBeUndefined()
+  expect(nodeLabel(unknown)).toBe('456')
+  expect(profileLink(unknown)).toBeNull()
 })

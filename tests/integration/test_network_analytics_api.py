@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_repository
+from app.db.models import SocialUser, UserDemographic
 from app.graph.builder import GraphBuilder
 from app.main import create_app
 from app.models.events import AuthorInfo, CanonicalEvent, ContentInfo, RelationshipInfo
@@ -81,3 +82,46 @@ def test_network_analytics_endpoints(repository) -> None:
     assert payload["provenance"] == "observed"
     assert payload["topic_status"] == "unavailable"
     assert missing.status_code == 404
+
+
+def test_network_profiles_and_community_audience_use_real_members(repository) -> None:
+    root = CanonicalEvent(
+        platform="x", platform_post_id="profile-root", interaction_type="post",
+        created_at=BASE, author=AuthorInfo(
+            platform_user_id="alice", username="alice", display_name="Alice",
+            avatar_url="https://example.org/alice.png",
+        ),
+        content=ContentInfo(text="hello"), source_metadata={"replay": False},
+    )
+    repository.insert_event(root)
+    for index, name in enumerate(("bob", "carol", "dave"), 1):
+        author = _reply(f"profile-{index}", "profile-root", "profile-root", name, "alice", index)
+        repository.insert_event(author)
+        repository.insert_graph_edges(GraphBuilder().edges_from_event(author))
+    for platform_id in ("alice", "bob", "carol"):
+        user = repository.session.query(SocialUser).filter_by(
+            platform="x", platform_user_id=platform_id
+        ).one()
+        repository.session.add(UserDemographic(user_id=user.user_id, primary_language="en", professional_sector="Technology"))
+    repository.session.commit()
+
+    app = create_app()
+    app.dependency_overrides[get_repository] = lambda: repository
+    with TestClient(app) as client:
+        graph = client.get("/api/network/graph").json()
+        cohorts = client.get("/api/network/communities").json()
+        sampled = client.get("/api/network/communities", params={"limit": 2}).json()
+    by_id = {node["node_id"]: node for node in graph["nodes"]}
+    assert by_id["x:alice"]["profile"] == {
+        "status": "stored_profile", "username": "alice", "display_name": "Alice",
+        "avatar_url": "https://example.org/alice.png", "is_verified": None,
+    }
+    assert cohorts["coverage"]["total_nodes"] == 4
+    assert cohorts["coverage"]["stored_profiles"] == 4
+    assert cohorts["coverage"]["demographic_records"] == 3
+    assert sum(item["size"] for item in cohorts["communities"]) == 4
+    segment = cohorts["communities"][0]
+    assert segment["audience"]["language"]["distribution"] == {"en": 3}
+    assert segment["audience"]["language"]["unknown"] == 1
+    assert sampled["edge_sample_limit"] == 2
+    assert sampled["coverage"]["total_nodes"] <= cohorts["coverage"]["total_nodes"]

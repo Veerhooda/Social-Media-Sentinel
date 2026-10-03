@@ -62,7 +62,7 @@ Statuses: COMPLETE, PARTIAL, UNAVAILABLE, NOT IMPLEMENTED.
 | Graph construction | Event-derived edges, configured weights | `/api/network/graph` | Network Analysis | COMPLETE | — |
 | Degree/betweenness/closeness | NetworkX metrics | `/api/network/summary`, `/influence` | Network Analysis | COMPLETE | Structural, not causal |
 | PageRank, HITS | NetworkX, convergence-guarded | Same | Network Analysis | COMPLETE | — |
-| Communities | Louvain + profiles | `/api/network/communities` | Network Analysis | COMPLETE | Snapshot-local identities |
+| Communities | Louvain + correct unique-node membership, profile coverage, aggregate cohort evidence | `/api/network/communities` | Network Analysis | PARTIAL | Snapshot-local identities; sparse stored profiles and minimum evidence per category |
 | Temporal network | Fixed windows on source time + deltas | `/api/network/temporal` | Network window selector | COMPLETE | — |
 | Propagation/cascades | Parent-chain reconstruction | `/api/network/cascades*` | Cascade panel + path | COMPLETE | 17 observed; some partial |
 | Sentiment on propagation | Persisted NLP attached per step | Cascade detail | Propagation path | COMPLETE | Empty where no NLP |

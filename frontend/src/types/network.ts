@@ -8,6 +8,31 @@ export interface NodeMetrics {
   hub_score: number
   authority_score: number
   community: number | null
+  profile?: PublicNodeProfile | null
+}
+
+export interface PublicNodeProfile {
+  status: 'stored_profile' | 'referenced_only'
+  username: string | null
+  display_name: string | null
+  avatar_url: string | null
+  is_verified: boolean | null
+}
+
+export interface GraphCoverage {
+  total_nodes: number
+  stored_profiles: number
+  referenced_only: number
+  avatar_available: number
+  demographic_records: number
+}
+
+export interface AudienceDimension {
+  status: 'AVAILABLE' | 'INSUFFICIENT_DATA'
+  known: number
+  unknown: number
+  suppressed: number
+  distribution: Record<string, number>
 }
 
 export interface NetworkSummary {
@@ -91,6 +116,9 @@ export interface CommunityProfile {
   interaction_type_counts: Record<string, number>
   first_seen_at: string | null
   last_seen_at: string | null
+  stored_profiles: number
+  referenced_only: number
+  audience: Record<string, AudienceDimension>
 }
 
 export interface CommunityListResponse {
@@ -98,6 +126,8 @@ export interface CommunityListResponse {
   window_end: string | null
   communities: CommunityProfile[]
   detail: string
+  coverage: GraphCoverage
+  edge_sample_limit: number | null
 }
 
 export interface CascadeSummary {

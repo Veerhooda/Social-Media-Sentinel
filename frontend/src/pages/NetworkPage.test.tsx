@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, expect, it, vi } from 'vitest'
 import { NetworkPage } from './NetworkPage'
@@ -44,6 +44,8 @@ const communities = {
     { community_id: 0, size: 4, interaction_volume: 3, dominant_interaction_types: ['reply'], interaction_type_counts: { reply: 3 }, first_seen_at: null, last_seen_at: null },
   ],
   detail: 'Snapshot-local identifiers.',
+  coverage: { total_nodes: 4, stored_profiles: 1, referenced_only: 3, avatar_available: 0, demographic_records: 1 },
+  edge_sample_limit: 500,
 }
 const cascades = {
   cascades: [
@@ -94,4 +96,8 @@ it('renders temporal snapshots, influence, communities and observed cascades', a
   expect(screen.getByText('x:root-1')).toBeInTheDocument()
   expect(screen.getByText(/pagerank increased/)).toBeInTheDocument()
   expect(screen.queryByText(/Most powerful users/i)).not.toBeInTheDocument()
+  expect(screen.getByText(/1 \/ 4 mapped accounts have stored profiles/)).toBeInTheDocument()
+  const community = screen.getByRole('button', { name: /Community 0.*show on map/ })
+  fireEvent.click(community)
+  expect(community).toHaveAttribute('aria-pressed', 'true')
 })

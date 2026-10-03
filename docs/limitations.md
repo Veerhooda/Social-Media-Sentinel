@@ -30,6 +30,7 @@
 - No follower graph or causal influence is claimed.
 - Network cascades are observed interaction trees only: 17 reconstructed on the current corpus, largest 6 events, max depth 3, several partially observable where parents are missing from storage.
 - Community identifiers are snapshot-local; cross-window community identity is not tracked.
+- The interaction map is a bounded recent-edge sample, not a complete audience or follower map. Accounts seen only as interaction targets have no stored public profile and appear as `referenced only`. Public avatar URLs depend on source-host CORS and can fail or change; fallback initials/colors remain available. Community audience categories use only mapped stored profiles, with unknown coverage; each shown category needs at least three members and smaller cells are suppressed. They are descriptive estimates, not verified individual traits.
 - Per-event topic assignments are not persisted, so topic-specific cascade analysis is unavailable.
 - NDLib diffusion simulation is not integrated.
 

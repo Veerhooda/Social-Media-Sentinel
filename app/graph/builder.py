@@ -37,8 +37,6 @@ class GraphBuilder:
         if event.source_metadata.get("mention_relationships_verified", True):
             mention_ids = event.source_metadata.get("mention_ids") or []
             mention_targets = [str(item) for item in mention_ids]
-            if not mention_targets:
-                mention_targets = [f"username:{username.lower()}" for username in event.content.mentions]
             targets.extend((target, "mention", self.weights.mention) for target in mention_targets)
 
         unique: dict[tuple[str, str], EdgeRecord] = {}

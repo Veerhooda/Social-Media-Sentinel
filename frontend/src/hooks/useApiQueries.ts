@@ -136,7 +136,7 @@ export const useNetworkInfluence = () =>
   useQuery({ queryKey: queryKeys.networkInfluence, queryFn: () => getNetworkInfluence('pagerank', 10), refetchInterval: POLL_INTERVAL })
 
 export const useNetworkCommunities = () =>
-  useQuery({ queryKey: queryKeys.networkCommunities, queryFn: getNetworkCommunities, refetchInterval: POLL_INTERVAL })
+  useQuery({ queryKey: queryKeys.networkCommunities, queryFn: () => getNetworkCommunities(), refetchInterval: POLL_INTERVAL })
 
 export const useNetworkCascades = () =>
   useQuery({ queryKey: queryKeys.networkCascades, queryFn: getNetworkCascades, refetchInterval: POLL_INTERVAL })

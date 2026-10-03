@@ -13,6 +13,21 @@ export function shortNodeLabel(id: string): string {
   return suffix.length > 24 ? `${suffix.slice(0, 21)}…` : suffix
 }
 
+export function nodeLabel(node: NodeMetrics): string {
+  if (node.profile?.status === 'stored_profile') {
+    return node.profile.display_name || (node.profile.username ? `@${node.profile.username}` : shortNodeLabel(node.node_id))
+  }
+  return shortNodeLabel(node.node_id)
+}
+
+export function profileLink(node: NodeMetrics): string | null {
+  const username = node.profile?.username
+  if (node.profile?.status !== 'stored_profile' || !username) return null
+  if (node.node_id.startsWith('x:') && /^[A-Za-z0-9_]{1,15}$/.test(username)) return `https://x.com/${username}`
+  if (node.node_id.startsWith('telegram:') && /^[A-Za-z0-9_]{5,32}$/.test(username)) return `https://t.me/${username}`
+  return null
+}
+
 export function connectedCore(data: NetworkGraphResponse, limit = 90): NetworkGraphResponse {
   const degree = new Map<string, number>()
   data.edges.forEach((edge) => {
@@ -41,9 +56,13 @@ export function buildVisualGraph(data: NetworkGraphResponse): Graph {
       y: Math.sin(angle) * radius,
       size: 5 + (maxRank ? Math.sqrt(node.pagerank / maxRank) * 11 : 0),
       color: communityColor(node.community),
-      label: shortNodeLabel(node.node_id),
+      label: node.profile?.status === 'stored_profile' ? nodeLabel(node) : '',
       rank: node.pagerank,
       community: node.community,
+      ...(node.profile?.status === 'stored_profile' && node.profile.avatar_url?.startsWith('https://') ? {
+        image: node.profile.avatar_url,
+        type: 'image',
+      } : {}),
     })
   })
 

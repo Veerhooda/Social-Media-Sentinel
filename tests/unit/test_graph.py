@@ -71,6 +71,17 @@ def test_telegram_reply_and_forward_use_existing_graph_semantics() -> None:
     assert by_type["forward"].weight == 1.0
 
 
+def test_textual_mention_without_verified_id_does_not_invent_account_node() -> None:
+    event = CanonicalEvent(
+        platform="x", platform_post_id="unresolved-mention", interaction_type="mention",
+        created_at=datetime(2026, 9, 20, 10, 0, tzinfo=UTC),
+        author=AuthorInfo(platform_user_id="source"),
+        content=ContentInfo(text="hello @someone", mentions=["someone"]),
+        source_metadata={"mention_ids": []},
+    )
+    assert GraphBuilder().edges_from_event(event) == []
+
+
 def test_betweenness_treats_interaction_weights_as_strength() -> None:
     graph = nx.DiGraph()
     graph.add_edge("a", "b", weight=5.0)

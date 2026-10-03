@@ -555,21 +555,35 @@ def network_influence(
 
 @router.get("/network/communities")
 def network_communities(
+    limit: int | None = Query(default=None, ge=1, le=5000),
     platform: str | None = None,
     repository: SocialRepository = Depends(get_repository),
 ):
+    from app.graph.audience import audience_dimensions, coverage
     from app.graph.schemas import CommunityListResponse
 
-    edges = repository.list_graph_edges(include_replay=False, platform=platform)
+    edges = repository.list_graph_edges(
+        include_replay=False, platform=platform, limit=limit,
+        newest_first=limit is not None,
+    )
     if not edges:
         return CommunityListResponse(detail="No interaction relationships available for this window.")
     communities = detect_communities(GraphBuilder.build_graph(edges))
+    records = repository.graph_audience_records(set(communities))
     profiles = community_profiles(edges, communities)
+    for profile in profiles:
+        members = {node for node, community in communities.items() if community == profile.community_id}
+        member_coverage = coverage(members, records)
+        profile.stored_profiles = member_coverage.stored_profiles
+        profile.referenced_only = member_coverage.referenced_only
+        profile.audience = audience_dimensions(members, records)
     return CommunityListResponse(
         window_start=min(edge.occurred_at for edge in edges),
         window_end=max(edge.occurred_at for edge in edges),
         communities=profiles,
-        detail="Snapshot-local community identifiers; identities are not tracked across windows.",
+        coverage=coverage(set(communities), records),
+        edge_sample_limit=limit,
+        detail="Communities and audience cohorts use observed graph members; demographic categories require at least 3 known profiles per community.",
     )
 
 
@@ -684,6 +698,8 @@ def network_graph(
     platform: str | None = None,
     repository: SocialRepository = Depends(get_repository),
 ) -> NetworkGraphResponse:
+    from app.graph.audience import public_profile
+
     edges = repository.list_graph_edges(
         include_replay=False,
         platform=platform,
@@ -692,6 +708,9 @@ def network_graph(
     )
     graph = GraphBuilder.build_graph(edges)
     summary = calculate_network_metrics(graph)
+    records = repository.graph_audience_records(set(graph.nodes))
+    for node in summary.metrics:
+        node.profile = public_profile(records.get(node.node_id))
     return NetworkGraphResponse(
         nodes=summary.metrics,
         edges=[
