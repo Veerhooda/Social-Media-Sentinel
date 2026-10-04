@@ -1,3 +1,10 @@
+> **Status (October 2026): frozen pre-build specification, dated 2026-09-20.**
+> It is preserved as the historical build contract (problem statement, repository
+> investigations, architecture decisions, acceptance criteria). It does not describe
+> everything added since — Audience Lab, collection sources, the UI overhaul. For the
+> system as it ships, start at `README.md` and the live references in `docs/`
+> (`docs/architecture.md`, `docs/ps-coverage.md`).
+
 # SPECS.md
 # AI-Driven Social Media Analytics Framework
 
