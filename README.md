@@ -1,16 +1,19 @@
 # Social Sentinel
 
 AI-driven social-media analytics over a unified, timestamped event timeline.
-Collects public X and Telegram activity into canonical PostgreSQL events, then
-derives sentiment, emotion, irony, supported stance, BERTrend topics, network
-topology, and aggregate demographics behind a FastAPI + React dashboard.
+Collects public X, Telegram, and YouTube activity into canonical PostgreSQL
+events, then derives sentiment, emotion, irony, supported stance, BERTrend
+topics, network topology, and aggregate demographics behind a FastAPI +
+React dashboard. An Audience Lab pre-flights posts against AI agents that
+each represent one audience segment.
 
 ## Problem-statement coverage
 
 The framework addresses five components:
 
-A. Continuous collection and timeline — X Recent Search / Filtered Stream and
-Telegram public history / live listener, normalized into one chronological store.
+A. Continuous collection and timeline — X Recent Search / Filtered Stream,
+Telegram public history / live listener, and YouTube comment polling,
+normalized into one chronological store.
 B. Multi-dimensional sentiment — positive/neutral/negative, fine-grained
 emotion (GoEmotions, with `nervousness` mapped to the product term anxiety),
 irony, and fixed-target stance, all with confidence and temporal aggregation.
@@ -23,12 +26,19 @@ PageRank, HITS, Louvain communities, temporal snapshots, observed cascades,
 and propagation paths. Structural metrics only; no causal claims, no follower
 graph.
 
+Beyond the five components: **Audience Lab** (`/audience-lab`) simulates
+audience reactions to a draft post and measures the uplift of an analyst
+rewrite. It needs a Meta Model API key and is honest about being simulation.
+
 ## What is implemented
 
-X ingestion, Telegram ingestion, canonical events, PostgreSQL timeline,
-sentiment, emotion, irony, supported stance, temporal analytics, BERTrend,
-continuous scheduler jobs, NetworkX analysis, communities, observed cascades,
-aggregate demographics, FastAPI, React dashboard, replay mode, health/job status.
+X ingestion, Telegram ingestion, YouTube polling, canonical events,
+PostgreSQL timeline, sentiment, emotion, irony, supported stance, temporal
+analytics, BERTrend, collection-source management (X queries, Telegram
+channels, YouTube videos from the Sources UI), an 8-job continuous
+scheduler, NetworkX analysis, communities, observed cascades, aggregate
+demographics, Audience Lab segmentation and simulation, FastAPI, React
+dashboard, replay mode, health/job status.
 
 ## Deliberately unavailable
 
@@ -36,8 +46,7 @@ aggregate demographics, FastAPI, React dashboard, replay mode, health/job status
 dashboard report UNAVAILABLE instead of fabricated brackets.
 - Arbitrary-target stance: fixed-target models are never misused as general
 stance engines.
-- YouTube: polling adapter and local integration implemented; live API unverified.
-  Reddit: COMING SOON. Meta/Instagram/Facebook: PLANNED, inactive.
+- Reddit, Meta/Instagram/Facebook: no collectors. Roadmap items, not UI badges.
 - Per-event topic labels, follower graphs, diffusion simulation: not present.
 
 ## Architecture
@@ -45,6 +54,7 @@ stance engines.
 ```text
 X ───────────┐
 Telegram ────┤
+YouTube ─────┤ (polling)
              ▼
       Platform Adapters
              ▼
@@ -69,13 +79,15 @@ Data flow: collection → normalization → persistence → NLP → trends →
 graph → aggregation → API → UI. Analytics modules sit behind
 application-level interfaces; SQL stays in repositories; platform objects
 never leak past adapters. Full detail: `docs/architecture.md`. Requirement
-mapping: `docs/ps-coverage.md`.
+mapping: `docs/ps-coverage.md`. Documentation index: `docs/README.md`.
 
 ## Stack
 
 Python 3.13, Pydantic, PostgreSQL 16, FastAPI, Uvicorn, React + Vite,
 NetworkX, Transformers/PyTorch (CardiffNLP sentiment/irony, GoEmotions),
-BERTrend/BERTopic, Tweepy (X), Telethon (Telegram), Alembic, Vitest.
+BERTrend/BERTopic, Tweepy (X), Telethon (Telegram), YouTube Data API v3,
+Alembic, Vitest. Audience Lab calls Muse Spark through the Meta Model API
+(OpenAI-compatible; key required, otherwise the Lab stays idle).
 
 ## Install
 
@@ -89,8 +101,11 @@ cd frontend && npm install && cd ..
 
 `.env` holds placeholders only and is never committed. Live X collection needs
 `X_BEARER_TOKEN`; live Telegram needs `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`,
-and an authorized `TELEGRAM_SESSION_STRING`. With credentials absent, live
-commands report SKIPPED. The standard demo needs no credentials at all.
+and an authorized `TELEGRAM_SESSION_STRING`; YouTube polling needs
+`YOUTUBE_API_KEY`. Collection targets (X queries, Telegram channels, YouTube
+videos) are managed in the Sources UI and seeded from `.env` on first use.
+With credentials absent, live commands report SKIPPED. The standard demo
+needs no credentials at all. Audience Lab needs `META_MODEL_API_KEY`.
 
 ## Start PostgreSQL
 
@@ -112,7 +127,12 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Health: `http://127.0.0.1:8000/api/health`. The scheduler is off unless
-`SCHEDULER_ENABLED=true`, and exactly one process may own it.
+`SCHEDULER_ENABLED=true`, and exactly one process may own it. Any
+registered job can also be run once on demand:
+
+```bash
+POST /api/system/jobs/{name}/run
+```
 
 ## Start the frontend
 
@@ -120,7 +140,9 @@ Health: `http://127.0.0.1:8000/api/health`. The scheduler is off unless
 cd frontend && npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
-Open `http://127.0.0.1:5173` for the public landing page, then use **Enter the dashboard** to open `/dashboard`. Verify with `npm run build`, `npm test`, `npm run lint`.
+Open `http://127.0.0.1:5173` for the public landing page, then use
+**Open dashboard** for `/dashboard` or **Test a post** for `/audience-lab`.
+Verify with `npm run build`, `npm test`, `npm run lint`.
 
 ## Local demo
 
@@ -135,7 +157,7 @@ stored rows, current migration revision, backend import, frontend build),
 starts FastAPI with the scheduler disabled, and starts Vite. Run migrations
 separately during setup. Follow the judge
 runbook in `docs/demo.md`. Demo data states: REAL DATA (stored non-replay),
-REPLAY (labeled synthetic), UNAVAILABLE, COMING SOON.
+REPLAY (labeled synthetic), UNAVAILABLE.
 
 ## Replay mode
 
@@ -150,6 +172,8 @@ Replay output must never be described as live platform data.
 
 ## Live ingestion (separate from the demo)
 
+Add sources in the Sources UI (`/data-sources`), or run one pass directly:
+
 ```bash
 uv run python scripts/run_x_search.py
 uv run python scripts/run_telegram_history.py public_channel --max-messages 20
@@ -157,7 +181,9 @@ uv run python scripts/run_youtube_comments.py --video-id VIDEO_ID --max-results 
 ```
 
 Bounded, credential-gated, and SKIPPED without configuration. Private
-Telegram conversations are out of scope.
+Telegram conversations are out of scope. For continuous collection, set
+`SCHEDULER_ENABLED=true` (one process only); the Jobs page (`/collection-status`)
+shows all 8 jobs with status, timings, and manual run controls.
 
 ## Known limitations
 

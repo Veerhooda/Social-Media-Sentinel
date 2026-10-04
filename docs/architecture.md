@@ -53,17 +53,23 @@ source-time windows remain an explicit outcome.
 
 ## Continuous scheduler
 
-`app/scheduler` is a lightweight standard-library thread scheduler owned by FastAPI lifespan. It coordinates existing services without containing their business logic:
+`app/scheduler` is a lightweight standard-library thread scheduler owned by FastAPI lifespan. It coordinates existing services without containing their business logic. Eight jobs are registered in `app/scheduler/jobs.py` (intervals from `app/core/config.py` settings):
 
 ```text
 SchedulerService
-  ├─ x_recent_search  -> XAdapter -> canonical event repository
-  ├─ nlp_processing   -> NLPService -> nlp_analysis
-  ├─ trend_analysis   -> TrendService -> topics/measurements
-  └─ graph_refresh    -> GraphBuilder -> graph_edges
+  ├─ x_recent_search        (X_SEARCH_INTERVAL_SECONDS, 60s)          -> XAdapter -> canonical event repository
+  ├─ telegram_collection    (TELEGRAM_POLL_INTERVAL_SECONDS, 120s)    -> TelegramAdapter -> canonical event repository
+  ├─ youtube_collection     (YOUTUBE_POLL_INTERVAL_SECONDS, 60s)      -> YouTubeAdapter -> EventPipeline
+  ├─ nlp_processing         (NLP_PROCESSING_INTERVAL_SECONDS, 30s)    -> NLPService -> nlp_analysis
+  ├─ trend_analysis         (TREND_INTERVAL_SECONDS, 900s)            -> TrendService -> topics/measurements
+  ├─ demographics_refresh   (DEMOGRAPHICS_INTERVAL_SECONDS, 600s)     -> DemographicsService
+  ├─ audience_profile_sync  (AUDIENCE_SYNC_INTERVAL_SECONDS, 900s)    -> audience_profiles upsert
+  └─ graph_refresh          (GRAPH_INTERVAL_SECONDS, 300s)            -> GraphBuilder -> graph_edges
 ```
 
-PostgreSQL checkpoints preserve the X `since_id` cursor and the latest event included in a successful trend refresh. `social_events.graph_processed_at` marks graph work even when an event produces no edge. Missing `nlp_analysis` rows identify pending NLP work.
+The scheduler runs only when `SCHEDULER_ENABLED=true` (default off); exactly one process may own it. Collection jobs read their targets from the `collection_sources` table (managed in the UI or seeded from `.env`), not from hard-coded queries.
+
+PostgreSQL checkpoints preserve the X `since_id` cursor, per-source collection cursors, and the latest event included in a successful trend refresh. `social_events.graph_processed_at` marks graph work even when an event produces no edge. Missing `nlp_analysis` rows identify pending NLP work.
 
 Per-job locks prevent overlap. One job failure is recorded without stopping other jobs. FastAPI shutdown stops dispatch and waits for active jobs. `/api/system/jobs` reports last/next run, last and cumulative counts, duration, failure, and overlap skips. Runtime status resets on restart; analytical progress is durable.
 
@@ -71,19 +77,17 @@ Per-job locks prevent overlap. One job failure is recorded without stopping othe
 
 `frontend/` is a TypeScript React/Vite application with a centralized typed API layer and TanStack Query cache. Recharts renders persisted temporal/topic data. Sigma.js renders the interaction map from backend nodes and edges, with a deterministic Graphology/ForceAtlas2 layout, pan/zoom, keyboard-selectable ranked accounts, and explicit connected-core versus all-loaded views. This is a recent-edge sample, not a claim about the complete follower network.
 
-The active UI follows `design.md`'s dark/yellow reference language. The
-overview's charcoal stage contains API-backed corpus totals, source coverage,
-four analytical signals and a source-time sentiment chart. Other routes use
+The active UI follows `docs/design-system.md`'s graphite-and-gold language. The
+overview's graphite stage contains API-backed corpus totals, source coverage,
+analytical signals and a source-time sentiment chart. Other routes use
 the same shell, controls and dark analytical surfaces; no crypto-specific
 concepts or fabricated profile/notification controls were introduced.
-The public `/` route is a separate landing page inspired by Dialed's page
-composition (floating navigation, centered editorial hero, staggered
-showcase and scroll-driven floral reveal). A passive scroll listener updates
-the rose reveal within a sticky section; reverse scrolling reverses it and
-reduced-motion users see a static bloom. Its previews are explicitly
-illustrative; it makes no live-data claims. `/dashboard` remains the
-API-backed overview behind the existing app shell, and all other analytical
-routes retain their URLs.
+The public `/` route is a short landing page backed by the same database:
+live corpus totals, a 30-day analysed-events-by-sentiment chart, gateway
+cards to each section, and two calls to action ("Open dashboard" for
+`/dashboard`, "Test a post" for `/audience-lab`). It makes no claims beyond
+what the API returns. `/dashboard` remains the API-backed overview behind
+the existing app shell, and all other analytical routes retain their URLs.
 
 The client never creates analytical labels or random graph data. It displays explicit live, replay, mixed, insufficient, loading, empty, error, and unavailable states.
 The health contract provides one aggregated platform summary, avoiding separate

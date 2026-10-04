@@ -4,7 +4,7 @@ The available evidence (public bios, short posts, no verified birth data)
 cannot support credible individual age inference. This module therefore
 exposes the stable application interface while honestly returning unknown.
 
-Per SPECS.md, legacy M3Inference must not be forced into the main runtime.
+Per docs/specs.md, legacy M3Inference must not be forced into the main runtime.
 A future text/profile-based model can implement :class:`AgeModel` without
 changing callers; until such a model is validated, the default analyzer
 returns unknown for every subject and the aggregate dimension reports

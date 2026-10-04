@@ -187,5 +187,7 @@ the explicit ingestion command.
 The adapter reports fetched events and hands them to an explicit callback;
 the shared `EventPipeline` owns PostgreSQL, NLP and graph writes. The bounded
 `scripts/run_youtube_comments.py` command uses this shared pipeline when an
-API key and video ID are explicitly supplied. No YouTube polling job is
-registered in the scheduler.
+API key and video ID are explicitly supplied. The `youtube_collection` scheduler
+job (`YOUTUBE_POLL_INTERVAL_SECONDS`, default 60s) polls the same pipeline on
+schedule for every enabled YouTube source in `collection_sources`; like all jobs
+it runs only when `SCHEDULER_ENABLED=true` and never in demo mode.

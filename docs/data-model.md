@@ -51,6 +51,27 @@ Migration `0003_scheduler` adds:
 - `social_events.graph_processed_at` for incremental graph processing;
 - `analytics_checkpoints` for X collection cursors and trend watermarks.
 
+Migration `0004_demographic_provenance` extends `user_demographics` with
+per-dimension confidence (`language_confidence`, `geography_confidence`),
+`inference_source`, `model_versions` (JSONB), and `updated_at`, plus indexes.
+
+Migration `0006_audience_lab` creates the Audience Lab tables (see
+`docs/audience-lab.md`):
+
+- `audience_profiles` (source-agnostic profile records with a unique
+  `(source, external_ref)`);
+- `audience_segmentations` (background segmentation jobs with status/progress);
+- `audience_segments` and `audience_segment_members` (segment membership);
+- `post_simulations` (baseline reactions, analyst output, rewrite, re-test uplift).
+
+There is no `0005`: the number was skipped, not lost. Migration
+`0007_drop_draft_reviews` drops the removed Draft Review prototype tables
+(`draft_reviews`, `audience_cohort_snapshots`).
+
+Migration `0008_collection_sources` creates `collection_sources`
+(`source_id`, platform, target, label, enabled, scheduling/cursor state) —
+the single table behind the Sources UI and the three collection jobs.
+
 The event repository upserts users and performs deterministic event insertion with a unique `(platform, platform_post_id)` constraint. Chronological queries sort by `created_at`.
 
 Indexes cover platform/source time, author, creation time, collection time, parent lookup, hashtag GIN queries, graph endpoints/time, and trend windows.

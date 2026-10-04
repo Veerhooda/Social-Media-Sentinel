@@ -8,11 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
 from app.audience_lab.routes import router as audience_lab_router
-from app.sources.routes import router as sources_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.scheduler.jobs import build_scheduler
 from app.scheduler.service import SchedulerService
+from app.sources.routes import router as sources_router
 
 
 def create_app(

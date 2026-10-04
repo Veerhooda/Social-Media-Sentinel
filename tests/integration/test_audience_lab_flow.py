@@ -3,15 +3,17 @@ from __future__ import annotations
 
 import re
 import threading
-from uuid import UUID
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
-from app.audience_lab import routes  # also registers Audience Lab tables on Base.metadata
+from app.audience_lab import (
+    routes,  # also registers Audience Lab tables on Base.metadata
+)
 from app.audience_lab.config import AudienceLabSettings, get_lab_settings
 from app.audience_lab.llm import LLMError
 from app.audience_lab.schemas import (
@@ -56,7 +58,7 @@ class ScriptedMuse:
                  "membership_rule": "never", "estimated_share_pct": 0},
             ])
         if output is AssignmentOutput:
-            refs = re.findall(r"^(P\d+) \|(.*)$", user, flags=re.M)
+            refs = re.findall(r"^(P\d+) \|(.*)$", user, flags=re.MULTILINE)
             return AssignmentOutput(assignments=[
                 {"ref": ref, "segment_id": "S1" if "Technology" in rest else "S2" if "Arts" in rest else "UNASSIGNED", "confidence": 0.9}
                 for ref, rest in refs

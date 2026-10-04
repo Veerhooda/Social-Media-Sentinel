@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime, timedelta
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -13,8 +13,18 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.audience_lab.config import AudienceLabSettings, get_lab_settings
 from app.audience_lab.llm import LLMClient, LLMError, build_client
-from app.audience_lab.models import AudienceProfile, AudienceSegment, AudienceSegmentation, PostSimulation
-from app.audience_lab.profiles import count_profiles, counts_by_source, sync_social_profiles, upsert_profiles
+from app.audience_lab.models import (
+    AudienceProfile,
+    AudienceSegment,
+    AudienceSegmentation,
+    PostSimulation,
+)
+from app.audience_lab.profiles import (
+    count_profiles,
+    counts_by_source,
+    sync_social_profiles,
+    upsert_profiles,
+)
 from app.audience_lab.schemas import (
     LabStatus,
     ProfileImport,
@@ -29,8 +39,8 @@ from app.audience_lab.schemas import (
     UpsertResult,
 )
 from app.audience_lab.segmentation import run_segmentation
-from app.audience_lab.tracker import is_live, register, release, request_cancel
 from app.audience_lab.simulation import media_meta, run_simulation
+from app.audience_lab.tracker import is_live, register, release, request_cancel
 from app.db.session import SessionLocal, get_db_session
 
 log = logging.getLogger(__name__)

@@ -24,7 +24,13 @@ from app.audience_lab.config import AudienceLabSettings
 from app.audience_lab.llm import LLMClient, LLMError
 from app.audience_lab.models import AudienceSegment, PostSimulation
 from app.audience_lab.schemas import AnalystOutput, SegmentReaction, SimulationRequest
-from app.audience_lab.tracker import JobCancelled, JobTracker, TrackedClient, call_one, run_parallel
+from app.audience_lab.tracker import (
+    JobCancelled,
+    JobTracker,
+    TrackedClient,
+    call_one,
+    run_parallel,
+)
 
 log = logging.getLogger(__name__)
 METRICS = ("positive", "neutral", "negative", "sarcastic", "interested", "engage", "share")

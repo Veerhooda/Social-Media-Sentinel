@@ -1,6 +1,6 @@
 # React Dashboard
 
-The dashboard follows `design.md` (tokens, components, motion, writing rules) and is a real client of FastAPI.
+The dashboard follows `docs/design-system.md` (tokens, components, motion, writing rules) and is a real client of FastAPI.
 
 ## Stack
 

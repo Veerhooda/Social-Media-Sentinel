@@ -11,40 +11,41 @@ stored X + Telegram data. Demonstrates the unified timeline (PS A).
 
 ## STEP 2 — Show source status
 
-Scroll to Data Sources. X and Telegram show stored real-event counts;
-YouTube shows its implemented polling adapter with no stored rows unless a
-video was explicitly collected; Reddit shows COMING SOON and Meta shows
-PLANNED. No fake throughput.
+Open Sources (`/data-sources`). Each collector panel — X, Telegram, YouTube —
+shows stored real-event counts, credential state, last-run outcome, and a
+manual "Collect now" control. Sources with no stored rows say "nothing
+collected yet". Reddit and Meta/Instagram have no collector: they are roadmap
+items, not UI badges. No fake throughput.
 Demonstrates honest collection state (PS A).
 
-## STEP 3 — Show Live Feed
+## STEP 3 — Show Conversations
 
-Open Live Feed. Rows are chronological canonical events with persisted NLP.
+Open Conversations (`/live-feed`). Rows are chronological canonical events with persisted NLP.
 The REAL DATA / MIXED DATA badge reflects stored rows, not an active
 collector. Demonstrates normalization and persistence (PS A).
 
-## STEP 4 — Show Sentiment & Emotion
+## STEP 4 — Show Sentiment
 
-Open Sentiment & Emotion. Point out positive/neutral/negative over time,
+Open Sentiment (`/sentiment`). Point out positive/neutral/negative over time,
 anxiety labeled as a nervousness mapping, and the irony-is-not-sarcasm note.
 Demonstrates nuanced inference with uncertainty (PS B).
 
-## STEP 5 — Show Trends & Topic Evolution
+## STEP 5 — Show Topics & Evolution
 
-Open Trends & Topics. Show ranked topics with growth and velocity, then open
+Open Topics (`/trends`). Show ranked topics with growth and velocity, then open
 a topic to show its evolution chart. Note where status reads
 INSUFFICIENT_DATA: one measurement is never called a trend. Demonstrates
 temporal topic detection without fabricated virality (PS D).
 
-## STEP 6 — Show Network Analysis
+## STEP 6 — Show Interaction map
 
-Open Network Analysis. Show nodes, edges, communities, and the structural
+Open Interaction map (`/network`). Show nodes, edges, communities, and the structural
 influence table. Language is "structural influence", never causal control.
 Demonstrates interaction topology (PS E).
 
 ## STEP 7 — Show observed cascade
 
-In Network Analysis, open the cascades panel and select the largest cascade.
+In Interaction map, open the cascades panel and select the largest cascade.
 Walk the chronological propagation path with community and sentiment per
 step. Note any "partially observable" provenance. Demonstrates observed
 propagation without invented edges (PS E).
@@ -62,7 +63,15 @@ one-line explanation that the corpus lacks validated age evidence. Full
 reasoning lives in `docs/demographics.md`. Demonstrates refusal to fabricate
 (PS C).
 
-## STEP 10 — Return to Overview
+## STEP 10 — Show Audience Lab (optional, needs a model key)
+
+Open Audience Lab (`/audience-lab`) only if `META_MODEL_API_KEY` is set.
+Show the segment list from the latest segmentation, open a simulation, and
+point out the measured before/after uplift. Without a key the page says so
+plainly instead of faking results. Demonstrates simulated pre-flight
+(outside the five PS components; see `docs/audience-lab.md`).
+
+## STEP 11 — Return to Overview
 
 Close on the honest system picture: what is observed, what is inferred,
 what is unavailable. Replay rows, if any, are badged REPLAY throughout.

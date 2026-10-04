@@ -47,8 +47,15 @@ M3Inference and other legacy demographic dependencies are intentionally absent f
 
 ## Verification record
 
-- `uv run pytest -q`: **67 passed**, with one upstream Starlette/AnyIO deprecation warning.
-- `uv run ruff check app scripts tests migrations`: **all checks passed**.
+Re-verified October 2026 after the Audience Lab / collection-sources / UI
+overhaul (same installed versions as the table above):
+
+- `uv run pytest -q`: **149 passed**, with one upstream Starlette/AnyIO deprecation warning.
+- `uv run ruff check app tests scripts migrations`: **all checks passed**.
+- Frontend: **26 Vitest tests across 13 files passed**, ESLint clean,
+  `tsc -b && vite build` succeeds.
+- The September 2026 record below is kept for provenance: `pytest` 67 passed,
+  Telegram-focused tests 18 passed, real replay/X/Telegram/YouTube checks as listed.
 - `uv run alembic check`: **no new upgrade operations detected**.
 - Telegram-focused unit/shared/integration tests: **18 passed**. This covers current
   Telethon object mapping, source/collection timestamps, sender/media/metrics,
@@ -70,4 +77,4 @@ M3Inference and other legacy demographic dependencies are intentionally absent f
 - Live X verification: **10 Recent Search events plus 4 bounded-stream events stored**, **14 real NLP results**, **15 real interaction edges**, and **10/10 deliberate duplicate reprocesses rejected**.
 - BERTrend 0.4.18 cross-window verification: **44 canonical real-X documents**, **2 populated 15-minute batches**, **13 window topics**, **1 semantic cross-window match**, **12 persisted topics**, and **13 idempotent measurements**.
 - Bounded scheduler verification: **25 seconds**, **10 real X events stored**, **10 NLP results added**, all **58 events graph-marked**, BERTrend refreshed through a third populated source-time window, and operational/API checks passed.
-- React verification: **13 frontend tests**, TypeScript production build, ESLint, and real Playwright navigation against PostgreSQL-backed FastAPI.
+- React verification (September 2026): **13 frontend tests**, TypeScript production build, ESLint, and real Playwright navigation against PostgreSQL-backed FastAPI. October 2026: 26 tests across 13 files, ESLint clean, production build succeeds.

@@ -13,14 +13,12 @@ from collections import deque
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import UTC, datetime
-from typing import Any, TypeVar
+from typing import Any
 from uuid import UUID
 
 from app.audience_lab.llm import LLMError
 
 log = logging.getLogger("app.audience_lab")
-T = TypeVar("T")
-R = TypeVar("R")
 _CANCEL: dict[UUID, threading.Event] = {}
 TICK_SECONDS = 2.0
 
@@ -179,7 +177,7 @@ class TrackedClient:
                     self.tracker.event(f"{label} failed after {seconds:.0f}s", "warn")
 
 
-def run_parallel(
+def run_parallel[T, R](
     fn: Callable[[T], R], items: Iterable[T], max_workers: int, tracker: JobTracker,
 ) -> Iterator[R]:
     """Run fn over items concurrently; yield results as they complete while flushing progress."""
@@ -199,7 +197,7 @@ def run_parallel(
         pool.shutdown(wait=not pending, cancel_futures=True)
 
 
-def call_one(fn: Callable[[], R], tracker: JobTracker) -> R:
+def call_one[R](fn: Callable[[], R], tracker: JobTracker) -> R:
     """Run a single blocking call off-thread so progress keeps flushing while it waits."""
     results = run_parallel(lambda _: fn(), [None], 1, tracker)
     try:

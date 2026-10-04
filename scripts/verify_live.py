@@ -47,7 +47,7 @@ def main() -> int:
         now = datetime.now(UTC)
         for platform in health.get("platforms", []):
             latest = platform.get("latest_collected_at")
-            age = (now - datetime.fromisoformat(latest.replace("Z", "+00:00"))).total_seconds() / 60 if latest else None
+            age = (now - datetime.fromisoformat(latest)).total_seconds() / 60 if latest else None
             age_text = f"{age:.0f} min ago" if age is not None else "never"
             print(f"  {platform['platform']:<9} {platform['real_event_count']:>6} events, last collected {age_text}")
     jobs = bodies.get("/system/jobs") if isinstance(bodies.get("/system/jobs"), dict) else {}

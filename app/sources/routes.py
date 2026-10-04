@@ -9,7 +9,11 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.db.session import get_db_session
 from app.scheduler.schemas import JobStatus
-from app.sources.jobs import TELEGRAM_COLLECTION_JOB, X_COLLECTION_JOB, YOUTUBE_COLLECTION_JOB
+from app.sources.jobs import (
+    TELEGRAM_COLLECTION_JOB,
+    X_COLLECTION_JOB,
+    YOUTUBE_COLLECTION_JOB,
+)
 from app.sources.repository import SourceRepository
 from app.sources.schemas import (
     PlatformCollector,
