@@ -105,7 +105,9 @@ No marketing tone, exclamation marks, emoji or "Powered by AI". Explain gaps wit
 
 ## 8. Verification
 
-`verify_prototype.command` (repo root) runs migrations, Ruff, pytest, ESLint, Vitest, `tsc -b && vite build`
-and `scripts/verify_live.py` (every dashboard endpoint, stored counts, freshness per platform, job status)
-and writes `verify_prototype.log`. Page tests stub the API through `src/test/fetch.ts` so they assert
+Verify with migrations (`uv run alembic upgrade head`), Ruff (`uv run ruff check app tests scripts`),
+pytest (`uv run pytest -q`), and in `frontend/`, ESLint, Vitest and `tsc -b && vite build`
+(`npm run lint`, `npm test`, `npm run build`), plus `scripts/verify_live.py` against a running API
+(every dashboard endpoint, stored counts, freshness per platform, job status).
+Page tests stub the API through `src/test/fetch.ts` so they assert
 behaviour against API shapes, not fixed copy.

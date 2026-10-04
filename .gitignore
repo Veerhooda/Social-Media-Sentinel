@@ -49,3 +49,5 @@ run_audience_lab.log
 verify_prototype.log
 push_to_github.log
 push_to_github.command
+run_audience_lab
+verify_prototype
